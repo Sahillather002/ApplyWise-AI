@@ -48,7 +48,13 @@ export interface CompanyResearch {
   talkingPoints: string[];
 }
 
-export type SidebarTab = 'apply' | 'research' | 'prep' | 'vault' | 'studio';
+export type SidebarTab = 'apply' | 'research' | 'prep' | 'vault' | 'studio' | 'chat';
+
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+  timestamp: Date;
+}
 
 export interface VideoState {
   isGenerating: boolean;

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ApplicationState, FormFieldMetadata, AISuggestion, SidebarTab, VideoState } from './types';
+import { ApplicationState, FormFieldMetadata, AISuggestion, SidebarTab, VideoState, UserProfile } from './types';
 import { MOCK_USER_PROFILE } from './constants';
 import { geminiService } from './services/geminiService';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -12,11 +12,11 @@ import ThemeToggle from './components/ThemeToggle';
 import { Zap, Sparkles, Mic, Check, Code, LayoutGrid, User, History, Home, Box } from 'lucide-react';
 
 // Structured Pages
-import UserProfileManagement from './pages/user-profile-management';
-import ApplicationHistory from './pages/application-history';
-import FormFieldDetection from './pages/form-field-detection';
-import ExtensionPopup from './pages/extension-popup-dashboard';
-import AISuggestionCardsPage from './pages/ai-suggestion-cards';
+import UserProfileManagement from './pages/user-profile-management/index';
+import ApplicationHistory from './pages/application-history/index';
+import FormFieldDetection from './pages/form-field-detection/index';
+import ExtensionPopup from './pages/extension-popup-dashboard/index';
+import AISuggestionCardsPage from './pages/ai-suggestion-cards/index';
 import NotFound from './pages/NotFound';
 
 const STORAGE_KEY = 'applywise_always_use';
@@ -25,6 +25,7 @@ type AppRoute = 'main' | 'profile' | 'history' | 'detection' | 'popup' | 'studio
 
 const App: React.FC = () => {
   const [route, setRoute] = useState<AppRoute>('main');
+  const [userProfile, setUserProfile] = useState<UserProfile>(MOCK_USER_PROFILE);
   const [state, setState] = useState<ApplicationState>({
     fields: [],
     suggestions: {},
@@ -90,7 +91,11 @@ const App: React.FC = () => {
     if (dictatingFieldId) recognitionRef.current?.stop();
     setDictatingFieldId(fieldId);
     setInterimTranscript("");
-    recognitionRef.current?.start();
+    try {
+      recognitionRef.current?.start();
+    } catch (e) {
+      console.warn("Speech recognition already started or failed:", e);
+    }
   };
 
   const stopDictation = () => {
@@ -127,17 +132,21 @@ const App: React.FC = () => {
 
     const alwaysUseData = localStorage.getItem(STORAGE_KEY);
     if (alwaysUseData) {
-      const parsed = JSON.parse(alwaysUseData);
-      setFieldValues(prev => {
-        const nextValues = { ...prev };
-        newFields.forEach(f => { if (parsed[f.id] && !nextValues[f.id]) nextValues[f.id] = parsed[f.id]; });
-        return nextValues;
-      });
-      setState(prev => {
-        const nextFilled = { ...prev.filledStatus };
-        newFields.forEach(f => { if (parsed[f.id] && !nextFilled[f.id]) nextFilled[f.id] = true; });
-        return { ...prev, filledStatus: nextFilled };
-      });
+      try {
+        const parsed = JSON.parse(alwaysUseData);
+        setFieldValues(prev => {
+          const nextValues = { ...prev };
+          newFields.forEach(f => { if (parsed[f.id] && !nextValues[f.id]) nextValues[f.id] = parsed[f.id]; });
+          return nextValues;
+        });
+        setState(prev => {
+          const nextFilled = { ...prev.filledStatus };
+          newFields.forEach(f => { if (parsed[f.id] && !nextFilled[f.id]) nextFilled[f.id] = true; });
+          return { ...prev, filledStatus: nextFilled };
+        });
+      } catch (e) {
+        localStorage.removeItem(STORAGE_KEY);
+      }
     }
   }, []);
 
@@ -147,9 +156,20 @@ const App: React.FC = () => {
     const formElement = document.getElementById('application-form');
     if (formElement) observerRef.current.observe(formElement, { childList: true, subtree: true });
     window.addEventListener('resize', detectFields);
+    
+    const handleFocusIn = (e: FocusEvent) => {
+        const target = e.target as HTMLElement;
+        if (target.id && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
+            setFocusedFieldId(target.id);
+        }
+    };
+    
+    window.addEventListener('focusin', handleFocusIn);
+
     return () => {
       observerRef.current?.disconnect();
       window.removeEventListener('resize', detectFields);
+      window.removeEventListener('focusin', handleFocusIn);
     };
   }, [detectFields]);
 
@@ -157,11 +177,11 @@ const App: React.FC = () => {
     if (state.fields.length > 0 && !state.isAnalyzing && Object.keys(state.suggestions).length === 0) {
       (async () => {
         setState(prev => ({ ...prev, isAnalyzing: true }));
-        const suggestions = await geminiService.analyzeForm(state.fields, MOCK_USER_PROFILE);
+        const suggestions = await geminiService.analyzeForm(state.fields, userProfile);
         setState(prev => ({ ...prev, suggestions, isAnalyzing: false }));
       })();
     }
-  }, [state.fields.length]);
+  }, [state.fields.length, userProfile]);
 
   const handleAcceptSuggestion = (fieldId: string) => {
     const suggestion = state.suggestions[fieldId];
@@ -191,7 +211,7 @@ const App: React.FC = () => {
   const handleRewriteEssay = async (fieldId: string, currentText: string) => {
     setIsRewriting(true);
     try {
-      const rewritten = await geminiService.rewriteEssay(currentText, MOCK_USER_PROFILE, "Senior Frontend Engineer");
+      const rewritten = await geminiService.rewriteEssay(currentText, userProfile, "Senior Frontend Engineer");
       setFieldValues(prev => ({ ...prev, [fieldId]: rewritten }));
       setState(prev => ({ ...prev, filledStatus: { ...prev.filledStatus, [fieldId]: true } }));
     } catch (e) { console.error(e); } finally { setIsRewriting(false); }
@@ -210,13 +230,13 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (route) {
-      case 'profile': return <UserProfileManagement />;
+      case 'profile': return <UserProfileManagement profile={userProfile} onUpdate={setUserProfile} />;
       case 'history': return <ApplicationHistory />;
       case 'detection': return <FormFieldDetection fields={state.fields} />;
       case 'studio': return <AISuggestionCardsPage />;
       case 'popup': return <ExtensionPopup />;
       case 'main': return (
-        <>
+        <div className="flex flex-1 h-full overflow-hidden">
           <BrowserSimulation>
             <MockForm 
               onFieldChange={handleManualChange}
@@ -230,11 +250,43 @@ const App: React.FC = () => {
               if (!field.rect) return null;
               const isFocused = focusedFieldId === field.id;
               const isFilled = state.filledStatus[field.id];
+              const isHovered = hoveredFieldId === field.id;
+              
               return (
-                <div key={`overlay-${field.id}`} style={{ position: 'absolute', top: field.rect.top + window.scrollY, left: field.rect.left + window.scrollX, width: field.rect.width, height: field.rect.height, pointerEvents: 'none', zIndex: 10 }} className={`rounded-lg border-2 transition-all ${dictatingFieldId === field.id ? 'border-red-500 animate-pulse' : isFocused ? 'border-indigo-500' : isFilled ? 'border-emerald-500/30' : 'border-transparent'}`}>
+                <div 
+                  key={`overlay-${field.id}`} 
+                  onMouseEnter={() => setHoveredFieldId(field.id)}
+                  onMouseLeave={() => setHoveredFieldId(null)}
+                  style={{ 
+                    position: 'absolute', 
+                    top: field.rect.top + window.scrollY, 
+                    left: field.rect.left + window.scrollX, 
+                    width: field.rect.width, 
+                    height: field.rect.height, 
+                    pointerEvents: 'none', 
+                    zIndex: 10 
+                  }} 
+                  className={`rounded-lg border-2 transition-all duration-300 ${
+                    dictatingFieldId === field.id ? 'border-red-500 animate-pulse bg-red-500/5' : 
+                    isFocused ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 
+                    isFilled ? 'border-emerald-500/30' : 
+                    isHovered ? 'border-slate-300' : 'border-transparent'
+                  }`}
+                >
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-auto flex items-center space-x-1">
-                     {(isFocused || hoveredFieldId === field.id) && <button onClick={() => startDictation(field.id)} className="p-1.5 bg-white dark:bg-slate-800 rounded shadow hover:text-indigo-600"><Mic size={14}/></button>}
-                     {isFilled && <div className="p-1.5 bg-emerald-500 text-white rounded"><Check size={14}/></div>}
+                     {(isFocused || isHovered) && (
+                         <button 
+                            onClick={() => startDictation(field.id)} 
+                            className="p-1.5 bg-white dark:bg-slate-800 rounded shadow-sm border border-slate-200 dark:border-white/10 text-slate-500 hover:text-indigo-600 transition-colors"
+                         >
+                            <Mic size={14}/>
+                         </button>
+                     )}
+                     {isFilled && (
+                         <div className="p-1.5 bg-emerald-500 text-white rounded shadow-sm">
+                            <Check size={14}/>
+                         </div>
+                     )}
                   </div>
                 </div>
               );
@@ -242,15 +294,21 @@ const App: React.FC = () => {
             {focusedFieldId && state.suggestions[focusedFieldId] && !state.filledStatus[focusedFieldId] && (
               <SuggestionCard 
                 suggestion={state.suggestions[focusedFieldId]}
-                rect={state.fields.find(f => f.id === focusedFieldId)!.rect!}
+                rect={state.fields.find(f => f.id === focusedFieldId)?.rect || new DOMRect(0,0,0,0)}
                 onAccept={() => handleAcceptSuggestion(focusedFieldId)}
                 onSkip={() => setFocusedFieldId(null)}
                 onAlwaysUse={() => handleAlwaysUse(focusedFieldId)}
               />
             )}
           </BrowserSimulation>
-          <Sidebar state={state} onAutoFillAll={handleAutoFillAll} onTabChange={(t) => setState(p => ({ ...p, activeTab: t }))} onVideoStateUpdate={(v) => setState(p => ({ ...p, videoState: v }))} onInterviewUpdate={(i) => setState(p => ({ ...p, interview: i }))} />
-        </>
+          <Sidebar 
+            state={state} 
+            onAutoFillAll={handleAutoFillAll} 
+            onTabChange={(t) => setState(p => ({ ...p, activeTab: t }))} 
+            onVideoStateUpdate={(v) => setState(p => ({ ...p, videoState: v }))} 
+            onInterviewUpdate={(i) => setState(p => ({ ...p, interview: i }))} 
+          />
+        </div>
       );
       default: return <NotFound onGoHome={() => setRoute('main')} />;
     }
@@ -258,16 +316,46 @@ const App: React.FC = () => {
 
   return (
     <ThemeProvider>
-      <div className="flex h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950 font-sans transition-colors duration-300">
+      <div className="flex h-screen w-full overflow-hidden bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-300">
         
         {/* Global Floating Nav for Demo */}
-        <div className="fixed top-6 left-6 z-[100] flex items-center space-x-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-2 rounded-2xl border border-slate-200 dark:border-white/10 shadow-2xl">
-          <button onClick={() => setRoute('main')} className={`p-2 rounded-xl transition-all ${route === 'main' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Home size={18}/></button>
-          <button onClick={() => setRoute('profile')} className={`p-2 rounded-xl transition-all ${route === 'profile' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><User size={18}/></button>
-          <button onClick={() => setRoute('history')} className={`p-2 rounded-xl transition-all ${route === 'history' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><History size={18}/></button>
-          <button onClick={() => setRoute('detection')} className={`p-2 rounded-xl transition-all ${route === 'detection' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Code size={18}/></button>
-          <button onClick={() => setRoute('studio')} className={`p-2 rounded-xl transition-all ${route === 'studio' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Box size={18}/></button>
-          <button onClick={() => setRoute('popup')} className={`p-2 rounded-xl transition-all ${route === 'popup' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><LayoutGrid size={18}/></button>
+        <div className="fixed top-6 left-6 z-[100] flex items-center space-x-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-2 rounded-2xl border border-slate-200 dark:border-white/10 shadow-2xl">
+          <button 
+            onClick={() => setRoute('main')} 
+            className={`p-2 rounded-xl transition-all ${route === 'main' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          >
+            <Home size={18}/>
+          </button>
+          <button 
+            onClick={() => setRoute('profile')} 
+            className={`p-2 rounded-xl transition-all ${route === 'profile' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          >
+            <User size={18}/>
+          </button>
+          <button 
+            onClick={() => setRoute('history')} 
+            className={`p-2 rounded-xl transition-all ${route === 'history' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          >
+            <History size={18}/>
+          </button>
+          <button 
+            onClick={() => setRoute('detection')} 
+            className={`p-2 rounded-xl transition-all ${route === 'detection' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          >
+            <Code size={18}/>
+          </button>
+          <button 
+            onClick={() => setRoute('studio')} 
+            className={`p-2 rounded-xl transition-all ${route === 'studio' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          >
+            <Box size={18}/>
+          </button>
+          <button 
+            onClick={() => setRoute('popup')} 
+            className={`p-2 rounded-xl transition-all ${route === 'popup' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          >
+            <LayoutGrid size={18}/>
+          </button>
           <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1" />
           <ThemeToggle />
         </div>
@@ -276,17 +364,20 @@ const App: React.FC = () => {
 
         {/* Global HUD - only visible on main */}
         {route === 'main' && (
-          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl px-6 py-4 flex items-center space-x-8 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] z-50">
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 dark:bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl px-6 py-4 flex items-center space-x-8 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] z-50">
             <div className="flex items-center space-x-3 pr-8 border-r border-white/10">
               <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
                 <Zap size={20} fill="currentColor" />
               </div>
-              <div>
+              <div className="hidden sm:block">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Application Assistant</p>
                 <p className="text-sm font-bold text-white">ApplyWise Engine <span className="text-indigo-400">v1.3</span></p>
               </div>
             </div>
-            <button onClick={handleAutoFillAll} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition-all shadow-lg active:scale-95">
+            <button 
+              onClick={handleAutoFillAll} 
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition-all shadow-lg active:scale-95"
+            >
               <Sparkles size={14} />
               <span>Hyper-Fill</span>
             </button>

@@ -4,9 +4,9 @@ import {
   CheckCircle, Circle, AlertCircle, Zap, User, FileText, 
   Settings, ChevronRight, ShieldCheck, Search, Database, History,
   Globe, Sparkles, Building2, Lightbulb, Video, Upload, Image as ImageIcon,
-  Play, Download, Loader2, Key, MessageSquare, Mic, StopCircle, Volume2
+  Play, Download, Loader2, Key, MessageSquare, Mic, StopCircle, Volume2, Send
 } from 'lucide-react';
-import { ApplicationState, SidebarTab, InterviewSession } from '../types';
+import { ApplicationState, SidebarTab, InterviewSession, ChatMessage } from '../types';
 import { geminiService } from '../services/geminiService';
 import { GoogleGenAI, Modality } from "@google/genai";
 import { MOCK_USER_PROFILE } from '../constants';
@@ -64,6 +64,12 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Chat state
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   // Interview state refs
   const sessionRef = useRef<any>(null);
   const audioContextInRef = useRef<AudioContext | null>(null);
@@ -74,6 +80,10 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
   const totalFields = state.fields.length;
   const filledFieldsCount = Object.values(state.filledStatus).filter(Boolean).length;
   const progress = totalFields > 0 ? (filledFieldsCount / totalFields) * 100 : 0;
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, isTyping]);
 
   const TabButton = ({ id, icon: Icon, label }: { id: SidebarTab, icon: any, label: string }) => (
     <button 
@@ -193,6 +203,25 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
     onInterviewUpdate({ ...state.interview, isActive: false });
   };
 
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || isTyping) return;
+    
+    const userMsg: ChatMessage = { role: 'user', text: chatInput, timestamp: new Date() };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatInput("");
+    setIsTyping(true);
+
+    try {
+      const responseText = await geminiService.chat(userMsg.text, chatMessages, MOCK_USER_PROFILE);
+      const aiMsg: ChatMessage = { role: 'model', text: responseText, timestamp: new Date() };
+      setChatMessages(prev => [...prev, aiMsg]);
+    } catch (err) {
+      setChatMessages(prev => [...prev, { role: 'model', text: "Sorry, I'm having trouble connecting right now.", timestamp: new Date() }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -246,13 +275,13 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
 
       <div className="flex border-b border-white/5 bg-slate-950/30">
         <TabButton id="apply" icon={CheckCircle} label="Apply" />
-        <TabButton id="research" icon={Globe} label="Intel" />
-        <TabButton id="prep" icon={MessageSquare} label="Prep" />
+        <TabButton id="chat" icon={MessageSquare} label="Chat" />
+        <TabButton id="prep" icon={Mic} label="Coach" />
         <TabButton id="studio" icon={Video} label="Studio" />
         <TabButton id="vault" icon={Database} label="Vault" />
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 overflow-y-auto custom-scrollbar relative">
         {state.activeTab === 'apply' && (
           <div className="p-6 space-y-6">
             <div className="bg-white/5 rounded-xl p-4 border border-white/5">
@@ -280,6 +309,60 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {state.activeTab === 'chat' && (
+          <div className="flex flex-col h-full bg-slate-900 animate-in fade-in duration-300">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar min-h-0">
+              {chatMessages.length === 0 && (
+                <div className="text-center py-12 px-4 space-y-4">
+                  <div className="w-12 h-12 bg-indigo-600/20 rounded-2xl flex items-center justify-center mx-auto text-indigo-400">
+                    <Sparkles size={24} />
+                  </div>
+                  <h3 className="text-sm font-bold text-white">Ask ApplyWise AI</h3>
+                  <p className="text-[10px] text-slate-500">Get help with resume tips, interview answers, or application advice.</p>
+                </div>
+              )}
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-[11px] leading-relaxed ${
+                    msg.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white/5 text-slate-300 rounded-tl-none border border-white/5'
+                  }`}>
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+              {isTyping && (
+                <div className="flex justify-start">
+                  <div className="bg-white/5 px-3 py-2 rounded-2xl rounded-tl-none border border-white/5">
+                    <div className="flex space-x-1">
+                      <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce" />
+                      <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce [animation-delay:0.2s]" />
+                      <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce [animation-delay:0.4s]" />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+            <div className="p-4 bg-slate-950/50 border-t border-white/5">
+              <div className="relative">
+                <input 
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Ask anything..."
+                  className="w-full bg-slate-900 border border-white/10 rounded-xl pl-4 pr-10 py-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                />
+                <button 
+                  onClick={handleSendMessage}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  <Send size={16} />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -338,14 +421,6 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
                   </button>
                 </div>
               )}
-            </div>
-            <div className="bg-emerald-600/5 p-4 rounded-xl border border-emerald-500/10">
-              <h4 className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2 flex items-center">
-                <CheckCircle size={12} className="mr-1" /> Prep Strategy
-              </h4>
-              <p className="text-[9px] text-slate-500 leading-relaxed">
-                Coach Zephyr uses your Master Resume and the target Job Description to simulate real-world curveballs. Focus on your TTI improvement metric.
-              </p>
             </div>
           </div>
         )}
