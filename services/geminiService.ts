@@ -11,12 +11,15 @@ export class GeminiService {
   async analyzeForm(fields: FormFieldMetadata[], profile: UserProfile): Promise<Record<string, AISuggestion>> {
     try {
       const ai = this.getClient();
-      const prompt = `User Profile Context: ${JSON.stringify(profile)}\n\nDetected Form Structure: ${JSON.stringify(fields)}`;
+      const prompt = `Analyze this job application form and map it to the user's career profile.
+      User Profile: ${JSON.stringify(profile)}
+      Detected Fields: ${JSON.stringify(fields)}`;
+
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
         config: {
-          systemInstruction: SYSTEM_INSTRUCTION + "\n\nCRITICAL: Always return a 'sourceExcerpt' field containing the exact snippet from the profile that matches the field. If no match is found, explain why in reasoning.",
+          systemInstruction: SYSTEM_INSTRUCTION + "\n\nCRITICAL: Extract a 'sourceExcerpt' field for every suggestion as proof.",
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -42,7 +45,7 @@ export class GeminiService {
         }
       });
       
-      const text = response.text?.trim() || '{"suggestions": []}';
+      const text = response.text || '{"suggestions": []}';
       const result = JSON.parse(text);
       const suggestionMap: Record<string, AISuggestion> = {};
       result.suggestions.forEach((s: AISuggestion) => suggestionMap[s.fieldId] = s);
@@ -57,10 +60,12 @@ export class GeminiService {
     const ai = this.getClient();
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: `Rewrite the following job application essay. Role: ${targetRole}. Candidate History: ${JSON.stringify(profile.experience)}. Original Draft: "${currentText}"`,
+      contents: `Rewrite this application essay for the role of ${targetRole}. 
+      Original Draft: "${currentText}"
+      Candidate context: ${JSON.stringify(profile.experience)}`,
       config: {
-        systemInstruction: "You are an elite career counselor. Optimize for clarity, punchiness, and impact. Use active verbs.",
-        thinkingConfig: { thinkingBudget: 2000 }
+        systemInstruction: "You are a world-class career coach. Refine this essay to be more impactful, using the provided candidate context to highlight specific achievements. Keep it professional and concise.",
+        thinkingConfig: { thinkingBudget: 2048 }
       }
     });
     return response.text || currentText;
@@ -68,35 +73,43 @@ export class GeminiService {
 
   async chat(message: string, history: ChatMessage[], profile: UserProfile): Promise<string> {
     const ai = this.getClient();
+    const chat = ai.chats.create({
+      model: 'gemini-3-pro-preview',
+      config: {
+        systemInstruction: `You are ApplyWise Advisor. 
+        User Profile: ${JSON.stringify(profile)}.
+        Help with applications, interview prep, and career strategy. Be professional and data-driven.`,
+        thinkingConfig: { thinkingBudget: 1024 }
+      }
+    });
+
+    // Provide history manually since ai.chats doesn't take history in create() in this SDK version
+    // Instead we use generateContent for multi-turn if we need to manage history manually
     const contents = history.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }]
     }));
-    
-    contents.push({
-      role: 'user',
-      parts: [{ text: message }]
-    });
+    contents.push({ role: 'user', parts: [{ text: message }] });
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: contents,
+      contents,
       config: {
-        systemInstruction: `You are the ApplyWise AI Career Advisor. You have full access to the user's career profile: ${JSON.stringify(profile)}. Answer questions about their job search, provide interview tips, or help them tailor their experience to specific job descriptions. Be concise, professional, and insightful.`,
-        thinkingConfig: { thinkingBudget: 1500 }
+        systemInstruction: `You are ApplyWise Advisor. Help ${profile.fullName} with career moves.`,
+        thinkingConfig: { thinkingBudget: 1024 }
       }
     });
 
-    return response.text || "I'm sorry, I'm unable to process that request at the moment.";
+    return response.text || "I'm sorry, I couldn't generate a response.";
   }
 
   async generateVideo(imageBytes: string, prompt: string, aspectRatio: '16:9' | '9:16', onStatusUpdate: (msg: string) => void): Promise<string> {
     const ai = this.getClient();
-    onStatusUpdate("Handshaking with Veo clusters...");
+    onStatusUpdate("Initializing video generation engine...");
     
     let operation = await ai.models.generateVideos({
       model: 'veo-3.1-fast-generate-preview',
-      prompt: prompt || 'Professional portrait animation, subtle cinematic lighting shift',
+      prompt: prompt || 'Subtle cinematic headshot animation with soft focus and high-end professional lighting.',
       image: {
         imageBytes,
         mimeType: 'image/png',
@@ -108,24 +121,24 @@ export class GeminiService {
       }
     });
 
-    onStatusUpdate("Generating motion vectors...");
+    onStatusUpdate("Processing image frames...");
 
     while (!operation.done) {
       await new Promise(resolve => setTimeout(resolve, 8000));
-      onStatusUpdate("Applying temporal consistency (80% complete)...");
+      onStatusUpdate("Synthesizing animation vectors (this may take a minute)...");
       try {
         operation = await ai.operations.getVideosOperation({ operation: operation });
       } catch (e: any) {
-        if (e.message?.includes("Requested entity was not found")) {
+        if (e.message?.includes("not found")) {
           throw new Error("API_KEY_RESET_REQUIRED");
         }
         throw e;
       }
     }
 
-    onStatusUpdate("Finalizing MP4 container...");
+    onStatusUpdate("Compiling final video artifact...");
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-    if (!downloadLink) throw new Error("Video generation failed.");
+    if (!downloadLink) throw new Error("Video generation completed but no link was provided.");
 
     const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
     const blob = await response.blob();

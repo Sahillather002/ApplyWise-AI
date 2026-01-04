@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, Mail, Phone, MapPin, Save, Globe, Shield, Activity, GraduationCap, Briefcase, Cpu } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Save, Shield, Cpu, Activity, GraduationCap, Briefcase } from 'lucide-react';
 import WorkExperienceTab from './components/WorkExperienceTab';
 import SkillsTab from './components/SkillsTab';
 import ProfileCompletion from './components/ProfileCompletion';
@@ -16,7 +16,7 @@ interface UserProfileManagementProps {
 const UserProfileManagement: React.FC<UserProfileManagementProps> = ({ profile, onUpdate }) => {
   const [activeTab, setActiveTab] = useState<'work' | 'skills' | 'basic'>('work');
 
-  const handleBasicInfoChange = (field: keyof UserProfile, value: string) => {
+  const handleUpdateField = (field: keyof UserProfile, value: any) => {
     onUpdate({ ...profile, [field]: value });
   };
 
@@ -44,7 +44,7 @@ const UserProfileManagement: React.FC<UserProfileManagementProps> = ({ profile, 
 
         <div className="grid grid-cols-12 gap-8">
           <div className="col-span-12 lg:col-span-8 space-y-8">
-            {/* Main Info */}
+            {/* Main Tabs UI */}
             <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-[2.5rem] p-8 shadow-sm">
               <div className="flex items-center space-x-8 border-b border-slate-100 dark:border-white/5 pb-6 mb-8 overflow-x-auto no-scrollbar">
                  <button 
@@ -65,31 +65,41 @@ const UserProfileManagement: React.FC<UserProfileManagementProps> = ({ profile, 
               </div>
 
               <div className="min-h-[400px]">
-                {activeTab === 'work' && <WorkExperienceTab experience={profile.experience} />}
-                {activeTab === 'skills' && <SkillsTab skills={profile.skills} />}
+                {activeTab === 'work' && (
+                  <WorkExperienceTab 
+                    experience={profile.experience} 
+                    onUpdate={(newExp) => handleUpdateField('experience', newExp)} 
+                  />
+                )}
+                {activeTab === 'skills' && (
+                  <SkillsTab 
+                    skills={profile.skills} 
+                    onUpdate={(newSkills) => handleUpdateField('skills', newSkills)} 
+                  />
+                )}
                 {activeTab === 'basic' && (
                   <div className="space-y-8 animate-in fade-in duration-300">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center"><User size={12} className="mr-1.5" /> Full Name</label>
-                        <input value={profile.fullName} onChange={(e) => handleBasicInfoChange('fullName', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 rounded-2xl px-5 py-3.5 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all text-slate-900 dark:text-white font-medium" />
+                        <input value={profile.fullName} onChange={(e) => handleUpdateField('fullName', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 rounded-2xl px-5 py-3.5 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all text-slate-900 dark:text-white font-medium" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center"><Mail size={12} className="mr-1.5" /> Contact Email</label>
-                        <input value={profile.email} onChange={(e) => handleBasicInfoChange('email', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 rounded-2xl px-5 py-3.5 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all text-slate-900 dark:text-white font-medium" />
+                        <input value={profile.email} onChange={(e) => handleUpdateField('email', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 rounded-2xl px-5 py-3.5 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all text-slate-900 dark:text-white font-medium" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center"><Phone size={12} className="mr-1.5" /> Phone Number</label>
-                        <input value={profile.phone} onChange={(e) => handleBasicInfoChange('phone', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 rounded-2xl px-5 py-3.5 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all text-slate-900 dark:text-white font-medium" />
+                        <input value={profile.phone} onChange={(e) => handleUpdateField('phone', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 rounded-2xl px-5 py-3.5 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all text-slate-900 dark:text-white font-medium" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center"><MapPin size={12} className="mr-1.5" /> Primary Location</label>
-                        <input value={profile.location} onChange={(e) => handleBasicInfoChange('location', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 rounded-2xl px-5 py-3.5 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all text-slate-900 dark:text-white font-medium" />
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center"><MapPin size={12} className="mr-1.5" /> Location</label>
+                        <input value={profile.location} onChange={(e) => handleUpdateField('location', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 rounded-2xl px-5 py-3.5 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all text-slate-900 dark:text-white font-medium" />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Professional Summary</label>
-                      <textarea value={profile.summary} onChange={(e) => handleBasicInfoChange('summary', e.target.value)} rows={4} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all text-slate-900 dark:text-white font-medium resize-none leading-relaxed" />
+                      <textarea value={profile.summary} onChange={(e) => handleUpdateField('summary', e.target.value)} rows={4} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all text-slate-900 dark:text-white font-medium resize-none leading-relaxed" />
                     </div>
                   </div>
                 )}
@@ -113,7 +123,7 @@ const UserProfileManagement: React.FC<UserProfileManagementProps> = ({ profile, 
               </p>
               <div className="flex items-center space-x-2 text-[10px] font-bold text-emerald-400 italic">
                 <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                <span>End-to-End Vault Encryption Active</span>
+                <span>Vault Verification Sync Active</span>
               </div>
             </div>
           </div>

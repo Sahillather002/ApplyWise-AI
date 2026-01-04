@@ -1,25 +1,22 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  CheckCircle, Circle, AlertCircle, Zap, User, FileText, 
-  Settings, ChevronRight, ShieldCheck, Search, Database, History,
-  Globe, Sparkles, Building2, Lightbulb, Video, Upload, Image as ImageIcon,
-  Play, Download, Loader2, Key, MessageSquare, Mic, StopCircle, Volume2, Send
+  CheckCircle, Circle, Zap, User, Database, Video, Upload, 
+  Play, Download, Loader2, MessageSquare, Mic, StopCircle, Volume2, Send, ShieldCheck
 } from 'lucide-react';
-import { ApplicationState, SidebarTab, InterviewSession, ChatMessage } from '../types';
+import { ApplicationState, SidebarTab, InterviewSession, ChatMessage, UserProfile } from '../types';
 import { geminiService } from '../services/geminiService';
 import { GoogleGenAI, Modality } from "@google/genai";
-import { MOCK_USER_PROFILE } from '../constants';
 
 interface SidebarProps {
   state: ApplicationState;
+  userProfile: UserProfile;
   onAutoFillAll: () => void;
   onTabChange: (tab: SidebarTab) => void;
   onVideoStateUpdate: (videoState: any) => void;
   onInterviewUpdate: (interview: InterviewSession) => void;
 }
 
-// Helper functions for audio encoding/decoding as required by Live API
 function encode(bytes: Uint8Array) {
   let binary = '';
   const len = bytes.byteLength;
@@ -58,19 +55,17 @@ async function decodeAudioData(
   return buffer;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, onVideoStateUpdate, onInterviewUpdate }) => {
+const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, onTabChange, onVideoStateUpdate, onInterviewUpdate }) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [videoPrompt, setVideoPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Chat state
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Interview state refs
   const sessionRef = useRef<any>(null);
   const audioContextInRef = useRef<AudioContext | null>(null);
   const audioContextOutRef = useRef<AudioContext | null>(null);
@@ -100,8 +95,7 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
   const startInterview = async () => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      onInterviewUpdate({ ...state.interview, isActive: true, transcription: ["Connecting to ApplyWise Career Coach..."] });
+      onInterviewUpdate({ ...state.interview, isActive: true, transcription: ["Connecting Coach..."] });
 
       audioContextInRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       audioContextOutRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -113,23 +107,14 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
         callbacks: {
           onopen: () => {
             onInterviewUpdate({ ...state.interview, isActive: true, transcription: ["Coach connected. Listening..."] });
-            
             const source = audioContextInRef.current!.createMediaStreamSource(stream);
             const scriptProcessor = audioContextInRef.current!.createScriptProcessor(4096, 1, 1);
-            
             scriptProcessor.onaudioprocess = (e) => {
               const inputData = e.inputBuffer.getChannelData(0);
               const int16 = new Int16Array(inputData.length);
-              for (let i = 0; i < inputData.length; i++) {
-                int16[i] = inputData[i] * 32768;
-              }
-              const pcmBlob = {
-                data: encode(new Uint8Array(int16.buffer)),
-                mimeType: 'audio/pcm;rate=16000',
-              };
-              sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
+              for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i] * 32768;
+              sessionPromise.then(session => session.sendRealtimeInput({ media: { data: encode(new Uint8Array(int16.buffer)), mimeType: 'audio/pcm;rate=16000' } }));
             };
-
             source.connect(scriptProcessor);
             scriptProcessor.connect(audioContextInRef.current!.destination);
           },
@@ -147,24 +132,12 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
               sourcesRef.current.add(source);
               source.onended = () => sourcesRef.current.delete(source);
             }
-
             if (message.serverContent?.outputTranscription) {
-              const text = message.serverContent.outputTranscription.text;
-              onInterviewUpdate({ 
-                ...state.interview, 
-                isActive: true, 
-                transcription: [...state.interview.transcription, `Coach: ${text}`] 
-              });
+              onInterviewUpdate({ ...state.interview, transcription: [...state.interview.transcription, `Coach: ${message.serverContent.outputTranscription.text}`] });
             }
             if (message.serverContent?.inputTranscription) {
-              const text = message.serverContent.inputTranscription.text;
-              onInterviewUpdate({ 
-                ...state.interview, 
-                isActive: true, 
-                transcription: [...state.interview.transcription, `You: ${text}`] 
-              });
+              onInterviewUpdate({ ...state.interview, transcription: [...state.interview.transcription, `You: ${message.serverContent.inputTranscription.text}`] });
             }
-
             if (message.serverContent?.interrupted) {
               sourcesRef.current.forEach(s => s.stop());
               sourcesRef.current.clear();
@@ -179,15 +152,11 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          systemInstruction: `You are a professional mock interviewer named Zephyr. 
-            User Profile: ${JSON.stringify(MOCK_USER_PROFILE)}.
-            Job: Senior Frontend Engineer at InnovateTech.
-            Goal: Conduct a realistic 2-way audio interview. Ask challenging technical and behavioral questions. 
-            Keep responses concise (1-2 sentences) so the user can speak more. 
-            Begin by greeting them and asking them to tell you about their experience with React migration.`
+          systemInstruction: `You are Zephyr, an AI Mock Interviewer. 
+          User Profile: ${JSON.stringify(userProfile)}.
+          Goal: Conduct a realistic 2-way audio interview for a Senior Frontend Engineer role. conciseness is key.`
         }
       });
-
       sessionRef.current = await sessionPromise;
     } catch (err) {
       console.error(err);
@@ -205,20 +174,33 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
 
   const handleSendMessage = async () => {
     if (!chatInput.trim() || isTyping) return;
-    
     const userMsg: ChatMessage = { role: 'user', text: chatInput, timestamp: new Date() };
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput("");
     setIsTyping(true);
-
     try {
-      const responseText = await geminiService.chat(userMsg.text, chatMessages, MOCK_USER_PROFILE);
-      const aiMsg: ChatMessage = { role: 'model', text: responseText, timestamp: new Date() };
-      setChatMessages(prev => [...prev, aiMsg]);
+      const responseText = await geminiService.chat(userMsg.text, chatMessages, userProfile);
+      setChatMessages(prev => [...prev, { role: 'model', text: responseText, timestamp: new Date() }]);
     } catch (err) {
-      setChatMessages(prev => [...prev, { role: 'model', text: "Sorry, I'm having trouble connecting right now.", timestamp: new Date() }]);
+      setChatMessages(prev => [...prev, { role: 'model', text: "Service temporarily unavailable.", timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
+    }
+  };
+
+  const generateVideo = async () => {
+    if (!selectedImage) return;
+    try {
+      const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+      if (!hasKey) await (window as any).aistudio.openSelectKey();
+      
+      onVideoStateUpdate({ ...state.videoState, isGenerating: true, statusMessage: "Initializing Engine...", error: null });
+      const base64 = selectedImage.split(',')[1];
+      const videoUrl = await geminiService.generateVideo(base64, videoPrompt, aspectRatio, (msg) => onVideoStateUpdate({ ...state.videoState, isGenerating: true, statusMessage: msg }));
+      onVideoStateUpdate({ ...state.videoState, isGenerating: false, videoUrl, statusMessage: "Generation successful." });
+    } catch (e: any) {
+      if (e.message === "API_KEY_RESET_REQUIRED") await (window as any).aistudio.openSelectKey();
+      onVideoStateUpdate({ ...state.videoState, isGenerating: false, error: e.message || "Failed to generate video." });
     }
   };
 
@@ -226,33 +208,8 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-      };
+      reader.onloadend = () => setSelectedImage(reader.result as string);
       reader.readAsDataURL(file);
-    }
-  };
-
-  const checkAndOpenKeyDialog = async () => {
-    const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-    if (!hasKey) {
-      await (window as any).aistudio.openSelectKey();
-      return true;
-    }
-    return true;
-  };
-
-  const generateVideo = async () => {
-    if (!selectedImage) return;
-    try {
-      await checkAndOpenKeyDialog();
-      onVideoStateUpdate({ ...state.videoState, isGenerating: true, statusMessage: "Waking up the neural engine...", error: null });
-      const base64 = selectedImage.split(',')[1];
-      const videoUrl = await geminiService.generateVideo(base64, videoPrompt, aspectRatio, (msg) => onVideoStateUpdate({ ...state.videoState, isGenerating: true, statusMessage: msg }));
-      onVideoStateUpdate({ ...state.videoState, isGenerating: false, videoUrl, statusMessage: "Complete!" });
-    } catch (e: any) {
-      if (e.message === "API_KEY_RESET_REQUIRED") await (window as any).aistudio.openSelectKey();
-      onVideoStateUpdate({ ...state.videoState, isGenerating: false, error: e.message || "Something went wrong" });
     }
   };
 
@@ -265,10 +222,6 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
               <Zap size={18} fill="currentColor" />
             </div>
             <span className="font-bold text-xl text-white">ApplyWise</span>
-          </div>
-          <div className="flex items-center space-x-2">
-             <div className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">LIVE</div>
-             <Settings size={16} className="text-slate-500 hover:text-white cursor-pointer" />
           </div>
         </div>
       </div>
@@ -293,19 +246,17 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
                 <div className="h-full bg-indigo-500 transition-all duration-700 shadow-[0_0_12px_rgba(99,102,241,0.6)]" style={{ width: `${progress}%` }}></div>
               </div>
               <button onClick={onAutoFillAll} className="w-full mt-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg py-2.5 font-bold text-xs transition-all flex items-center justify-center space-x-2 shadow-lg">
-                <Sparkles size={14} />
+                <Zap size={14} />
                 <span>Auto-fill Everything</span>
               </button>
             </div>
             <div className="space-y-2">
-              <h3 className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Field Analysis</h3>
+              <h3 className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3">Form Analysis</h3>
               {state.fields.map(field => (
                 <div key={field.id} className={`p-3 rounded-lg border transition-all ${state.filledStatus[field.id] ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-slate-800/40 border-white/5'}`}>
                   <div className="flex items-center justify-between">
-                    <div className="truncate pr-2">
-                      <p className={`text-xs font-semibold ${state.filledStatus[field.id] ? 'text-emerald-400' : 'text-slate-300'}`}>{field.label}</p>
-                    </div>
-                    {state.filledStatus[field.id] ? <CheckCircle size={14} className="text-emerald-500" /> : <Circle size={14} className="text-slate-700" />}
+                    <p className={`text-xs font-semibold truncate flex-1 ${state.filledStatus[field.id] ? 'text-emerald-400' : 'text-slate-300'}`}>{field.label}</p>
+                    {state.filledStatus[field.id] && <CheckCircle size={14} className="text-emerald-500" />}
                   </div>
                 </div>
               ))}
@@ -314,37 +265,24 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
         )}
 
         {state.activeTab === 'chat' && (
-          <div className="flex flex-col h-full bg-slate-900 animate-in fade-in duration-300">
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar min-h-0">
+          <div className="flex flex-col h-full bg-slate-900">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
               {chatMessages.length === 0 && (
                 <div className="text-center py-12 px-4 space-y-4">
-                  <div className="w-12 h-12 bg-indigo-600/20 rounded-2xl flex items-center justify-center mx-auto text-indigo-400">
-                    <Sparkles size={24} />
-                  </div>
-                  <h3 className="text-sm font-bold text-white">Ask ApplyWise AI</h3>
-                  <p className="text-[10px] text-slate-500">Get help with resume tips, interview answers, or application advice.</p>
+                  <MessageSquare size={32} className="mx-auto text-indigo-500/30" />
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest">Start a career conversation</p>
                 </div>
               )}
               {chatMessages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-[11px] leading-relaxed ${
-                    msg.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white/5 text-slate-300 rounded-tl-none border border-white/5'
+                    msg.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-white/5 text-slate-300 border border-white/5'
                   }`}>
                     {msg.text}
                   </div>
                 </div>
               ))}
-              {isTyping && (
-                <div className="flex justify-start">
-                  <div className="bg-white/5 px-3 py-2 rounded-2xl rounded-tl-none border border-white/5">
-                    <div className="flex space-x-1">
-                      <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce" />
-                      <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce [animation-delay:0.2s]" />
-                      <div className="w-1 h-1 bg-slate-500 rounded-full animate-bounce [animation-delay:0.4s]" />
-                    </div>
-                  </div>
-                </div>
-              )}
+              {isTyping && <div className="text-[10px] text-indigo-400 animate-pulse">Thinking...</div>}
               <div ref={chatEndRef} />
             </div>
             <div className="p-4 bg-slate-950/50 border-t border-white/5">
@@ -353,13 +291,10 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Ask anything..."
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl pl-4 pr-10 py-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                  placeholder="Ask advisor..."
+                  className="w-full bg-slate-900 border border-white/10 rounded-xl pl-4 pr-10 py-2.5 text-xs outline-none"
                 />
-                <button 
-                  onClick={handleSendMessage}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-400 hover:text-indigo-300 transition-colors"
-                >
+                <button onClick={handleSendMessage} className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-400">
                   <Send size={16} />
                 </button>
               </div>
@@ -368,137 +303,65 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
         )}
 
         {state.activeTab === 'prep' && (
-          <div className="p-6 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-             <div>
-              <h3 className="text-lg font-bold text-white mb-1">Interview Coach</h3>
-              <p className="text-[11px] text-slate-400 mb-4 italic">Live voice-to-voice mock interview with Gemini.</p>
-              
-              {!state.interview.isActive ? (
-                <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center space-y-4">
-                  <div className="w-16 h-16 bg-indigo-600/20 rounded-full flex items-center justify-center mx-auto text-indigo-400">
-                    <Volume2 size={32} />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold text-white">Ready for a mock interview?</p>
-                    <p className="text-[10px] text-slate-500">Practice your React and Frontend knowledge with a real-time AI coach.</p>
-                  </div>
-                  <button 
-                    onClick={startInterview}
-                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg"
-                  >
-                    Start Audio Session
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="bg-slate-950 border border-indigo-500/30 rounded-xl overflow-hidden shadow-2xl">
-                    <div className="bg-indigo-600/10 px-4 py-2 border-b border-indigo-500/20 flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                        <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Live Coaching</span>
-                      </div>
-                      <Mic size={14} className="text-indigo-400" />
-                    </div>
-                    <div className="h-64 p-4 overflow-y-auto space-y-3 custom-scrollbar text-[11px]">
-                      {state.interview.transcription.map((line, i) => (
-                        <div key={i} className={`${line.startsWith('Coach:') ? 'text-indigo-300' : 'text-slate-400 italic'}`}>
-                          {line}
-                        </div>
-                      ))}
-                      <div className="flex justify-center pt-4">
-                         <div className="flex space-x-1">
-                            {[1, 2, 3, 4, 5].map(n => <div key={n} className="w-1 h-4 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: `${n * 0.1}s` }} />)}
-                         </div>
-                      </div>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={stopInterview}
-                    className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-2 shadow-lg"
-                  >
-                    <StopCircle size={16} />
-                    <span>End Session</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {state.activeTab === 'studio' && (
-          <div className="p-6 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div>
-              <h3 className="text-lg font-bold text-white mb-1">Veo Studio</h3>
-              <p className="text-[11px] text-slate-400 mb-4 italic">Bring your headshot or portfolio to life with AI animation.</p>
-              {!state.videoState.isGenerating && !state.videoState.videoUrl && (
-                <div className="space-y-4">
-                  <div onClick={() => fileInputRef.current?.click()} className="group border-2 border-dashed border-white/10 hover:border-indigo-500/50 bg-white/5 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all">
-                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
-                    {selectedImage ? (
-                      <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-white/10">
-                        <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
-                      </div>
-                    ) : (
-                      <>
-                        <Upload className="text-slate-600 mb-3 group-hover:text-indigo-400 transition-colors" size={32} />
-                        <p className="text-xs font-semibold text-slate-400">Click to upload photo</p>
-                      </>
-                    )}
-                  </div>
-                  <button disabled={!selectedImage} onClick={generateVideo} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl font-bold text-sm transition-all shadow-xl flex items-center justify-center space-x-2">
-                    <Play size={16} fill="currentColor" />
-                    <span>Animate Image with Veo</span>
-                  </button>
-                </div>
-              )}
-              {state.videoState.isGenerating && (
-                <div className="text-center py-20 space-y-6 animate-in fade-in duration-500">
-                  <Loader2 className="animate-spin text-indigo-500 mx-auto" size={48} />
-                  <p className="text-sm font-bold text-white">{state.videoState.statusMessage}</p>
-                </div>
-              )}
-              {state.videoState.videoUrl && (
-                <div className="space-y-4 animate-in zoom-in-95 duration-300">
-                  <video src={state.videoState.videoUrl} controls autoPlay loop className="rounded-xl overflow-hidden w-full aspect-video" />
-                  <a href={state.videoState.videoUrl} download className="w-full py-2 bg-indigo-600 rounded-lg text-xs font-bold text-white flex items-center justify-center space-x-2">
-                    <Download size={14} /> <span>Download MP4</span>
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {state.activeTab === 'research' && (
-          <div className="p-6 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-            {state.isResearching ? (
-              <div className="text-center py-20 space-y-4"><Loader2 className="animate-spin h-10 w-10 text-indigo-500 mx-auto" /><p className="text-sm text-slate-400">Deep-diving into company data...</p></div>
-            ) : state.companyInfo ? (
-              <div className="space-y-6">
-                <div className="flex items-center space-x-3 mb-2">
-                  <Building2 size={20} className="text-indigo-400" />
-                  <div><h2 className="text-lg font-bold text-white leading-tight">{state.companyInfo.name}</h2></div>
-                </div>
-                <section className="bg-white/5 p-4 rounded-xl border border-white/5">
-                  <h4 className="text-[10px] text-slate-500 font-bold uppercase mb-2">Core Mission</h4>
-                  <p className="text-xs italic text-slate-300">"{state.companyInfo.mission}"</p>
-                </section>
-              </div>
+          <div className="p-6 space-y-6">
+            <h3 className="text-lg font-bold text-white">Interview Coach</h3>
+            {!state.interview.isActive ? (
+              <button onClick={startInterview} className="w-full py-3 bg-indigo-600 rounded-xl font-bold text-sm">Start Audio Session</button>
             ) : (
-              <div className="text-center py-20"><Globe size={40} className="mx-auto text-slate-800 mb-4" /><p className="text-sm text-slate-500 mb-4">Enable Company Intel to auto-generate personalized answer hooks.</p></div>
+              <div className="space-y-4">
+                <div className="h-64 bg-slate-950 rounded-xl p-4 overflow-y-auto text-[11px] space-y-2 font-mono">
+                  {state.interview.transcription.map((t, i) => <div key={i} className={t.startsWith('Coach:') ? 'text-indigo-400' : 'text-slate-400'}>{t}</div>)}
+                </div>
+                <button onClick={stopInterview} className="w-full py-3 bg-red-600 rounded-xl font-bold text-sm flex items-center justify-center space-x-2">
+                  <StopCircle size={16} /> <span>End Session</span>
+                </button>
+              </div>
             )}
           </div>
         )}
 
+        {state.activeTab === 'studio' && (
+          <div className="p-6 space-y-6">
+            <h3 className="text-lg font-bold text-white">Veo Studio</h3>
+            {!state.videoState.isGenerating && !state.videoState.videoUrl && (
+              <div className="space-y-4">
+                <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-white/10 rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer hover:border-indigo-500/50 transition-all">
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                  {selectedImage ? <img src={selectedImage} className="w-full h-32 object-cover rounded-lg" /> : <Upload className="text-slate-500" size={32} />}
+                  <p className="text-[10px] mt-2 uppercase font-bold text-slate-500">Upload Image</p>
+                </div>
+                <input 
+                  value={videoPrompt}
+                  onChange={(e) => setVideoPrompt(e.target.value)}
+                  placeholder="Custom animation prompt (optional)..."
+                  className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-2.5 text-xs outline-none"
+                />
+                <button disabled={!selectedImage} onClick={generateVideo} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-bold flex items-center justify-center space-x-2">
+                  <Play size={16} fill="currentColor" /> <span>Animate with Veo</span>
+                </button>
+              </div>
+            )}
+            {state.videoState.isGenerating && (
+              <div className="text-center py-10 space-y-4">
+                <Loader2 className="animate-spin text-indigo-500 mx-auto" size={40} />
+                <p className="text-sm font-bold">{state.videoState.statusMessage}</p>
+              </div>
+            )}
+            {state.videoState.videoUrl && (
+              <div className="space-y-4">
+                <video src={state.videoState.videoUrl} controls autoPlay loop className="rounded-xl w-full" />
+                <button onClick={() => onVideoStateUpdate({...state.videoState, videoUrl: null})} className="w-full py-2 bg-slate-800 rounded-xl text-xs font-bold">New Animation</button>
+              </div>
+            )}
+            {state.videoState.error && <p className="text-red-400 text-xs text-center">{state.videoState.error}</p>}
+          </div>
+        )}
+
         {state.activeTab === 'vault' && (
-          <div className="p-6 text-center py-20">
-             <Database size={40} className="mx-auto text-slate-800 mb-4" />
-             <p className="text-sm text-slate-400 mb-6">Your data is locally encrypted.</p>
-             <div className="bg-white/5 p-3 rounded-lg text-left border border-white/5 flex items-center justify-between">
-                <FileText size={16} className="text-indigo-400" />
-                <span className="text-xs font-semibold flex-1 ml-3">Master Resume v2.pdf</span>
-                <CheckCircle size={14} className="text-emerald-500" />
-             </div>
+          <div className="p-10 text-center space-y-4">
+            <ShieldCheck size={48} className="mx-auto text-emerald-500/20" />
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Local Vault Active</p>
+            <p className="text-[11px] text-slate-400">All application data is stored locally and protected with hardware-level encryption.</p>
           </div>
         )}
       </div>
@@ -506,9 +369,9 @@ const Sidebar: React.FC<SidebarProps> = ({ state, onAutoFillAll, onTabChange, on
       <div className="p-4 bg-slate-950/80 border-t border-white/5 flex items-center justify-between">
         <div className="flex items-center space-x-2 text-[10px] font-bold text-slate-500">
           <ShieldCheck size={12} className="text-emerald-500" />
-          <span>PRIVATE MODE ACTIVE</span>
+          <span>ENCRYPTED</span>
         </div>
-        <span className="text-[10px] text-slate-600">v1.3.0-stable</span>
+        <span className="text-[10px] text-slate-600 tracking-tighter">ApplyWise v1.3</span>
       </div>
     </div>
   );
