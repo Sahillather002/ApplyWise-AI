@@ -1,0 +1,8 @@
+{
+  "name": "ApplyWise AI",
+  "description": "An intelligent browser extension that assists with job applications using context-aware AI and semantic form mapping.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
