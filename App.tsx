@@ -17,13 +17,17 @@ import FormFieldDetection from './pages/form-field-detection/index';
 import ExtensionPopup from './pages/extension-popup-dashboard/index';
 import AISuggestionCardsPage from './pages/ai-suggestion-cards/index';
 import NotFound from './pages/NotFound';
+import LandingPage from './pages/LandingPage';
 
 const STORAGE_KEY = 'applywise_always_use_map';
 
-type AppRoute = 'main' | 'profile' | 'history' | 'detection' | 'popup' | 'interaction-studio' | '404';
+type AppRoute = 'landing' | 'main' | 'profile' | 'history' | 'detection' | 'popup' | 'interaction-studio' | '404';
 
 const App: React.FC = () => {
-  const [route, setRoute] = useState<AppRoute>('main');
+  const [route, setRoute] = useState<AppRoute>(() => {
+    // Optionally stay on landing unless the user is "returning" or we want a fresh experience
+    return 'landing';
+  });
   const [userProfile, setUserProfile] = useState<UserProfile>(MOCK_USER_PROFILE);
   const [state, setState] = useState<ApplicationState>({
     fields: [],
@@ -32,7 +36,6 @@ const App: React.FC = () => {
     isAnalyzing: false,
     activeTab: 'apply',
     companyInfo: null,
-    // Fixed: 'boolean' keyword was used as a value on line 35
     isResearching: false,
     videoState: { isGenerating: false, progress: 0, statusMessage: "", videoUrl: null, error: null },
     interview: { isActive: false, transcription: [], isListening: false }
@@ -158,6 +161,7 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (route) {
+      case 'landing': return <LandingPage onStart={() => setRoute('main')} />;
       case 'profile': return <UserProfileManagement profile={userProfile} onUpdate={setUserProfile} />;
       case 'history': return <ApplicationHistory />;
       case 'detection': return <FormFieldDetection fields={state.fields} />;
@@ -204,11 +208,11 @@ const App: React.FC = () => {
     <ThemeProvider>
       <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white overflow-hidden transition-colors duration-300 font-sans">
         <div className="fixed top-6 left-6 z-[100] flex items-center space-x-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-2 rounded-2xl border border-slate-200 dark:border-white/10 shadow-2xl">
-          <button onClick={() => setRoute('main')} className={`p-2 rounded-xl transition-all ${route === 'main' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Home size={18}/></button>
+          <button onClick={() => setRoute('landing')} className={`p-2 rounded-xl transition-all ${route === 'landing' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Home size={18}/></button>
+          <button onClick={() => setRoute('main')} className={`p-2 rounded-xl transition-all ${route === 'main' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Box size={18}/></button>
           <button onClick={() => setRoute('profile')} className={`p-2 rounded-xl transition-all ${route === 'profile' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><User size={18}/></button>
           <button onClick={() => setRoute('history')} className={`p-2 rounded-xl transition-all ${route === 'history' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><History size={18}/></button>
           <button onClick={() => setRoute('detection')} className={`p-2 rounded-xl transition-all ${route === 'detection' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Code size={18}/></button>
-          <button onClick={() => setRoute('interaction-studio')} className={`p-2 rounded-xl transition-all ${route === 'interaction-studio' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Box size={18}/></button>
           <button onClick={() => setRoute('popup')} className={`p-2 rounded-xl transition-all ${route === 'popup' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><LayoutGrid size={18}/></button>
           <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1" />
           <ThemeToggle />
