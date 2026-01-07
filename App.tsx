@@ -21,6 +21,7 @@ import LandingPage from './pages/LandingPage';
 import NotFound from './pages/NotFound';
 
 const STORAGE_KEY = 'applywise_always_use_map';
+const DICTATION_KEY = 'applywise_dictation_session';
 
 type AppRoute = 'landing' | 'main' | 'profile' | 'history' | 'detection' | 'popup' | 'interaction-studio' | '404';
 
@@ -37,17 +38,32 @@ function encode(bytes: Uint8Array) {
 const App: React.FC = () => {
   const [route, setRoute] = useState<AppRoute>('landing');
   const [userProfile, setUserProfile] = useState<UserProfile>(MOCK_USER_PROFILE);
-  const [state, setState] = useState<ApplicationState>({
-    fields: [],
-    suggestions: {},
-    filledStatus: {},
-    isAnalyzing: false,
-    activeTab: 'apply',
-    companyInfo: null,
-    isResearching: false,
-    videoState: { isGenerating: false, progress: 0, statusMessage: "", videoUrl: null, error: null },
-    interview: { isActive: false, transcription: [], isListening: false },
-    dictation: { id: null, interimText: "", isListening: false }
+  
+  const [state, setState] = useState<ApplicationState>(() => {
+    const savedDictation = localStorage.getItem(DICTATION_KEY);
+    let dictation = { id: null, interimText: "", isListening: false };
+    
+    if (savedDictation) {
+      try {
+        const parsed = JSON.parse(savedDictation);
+        dictation = { ...parsed, isListening: false };
+      } catch (e) {
+        console.error("Failed to restore dictation state", e);
+      }
+    }
+
+    return {
+      fields: [],
+      suggestions: {},
+      filledStatus: {},
+      isAnalyzing: false,
+      activeTab: 'apply',
+      companyInfo: null,
+      isResearching: false,
+      videoState: { isGenerating: false, progress: 0, statusMessage: "", videoUrl: null, error: null },
+      interview: { isActive: false, transcription: [], isListening: false },
+      dictation: dictation
+    };
   });
 
   const [focusedFieldId, setFocusedFieldId] = useState<string | null>(null);
@@ -55,11 +71,30 @@ const App: React.FC = () => {
   const [isRewriting, setIsRewriting] = useState(false);
   const observerRef = useRef<MutationObserver | null>(null);
 
-  // Dictation Session Refs
   const dictationSessionRef = useRef<any>(null);
   const dictationAudioInRef = useRef<AudioContext | null>(null);
 
-  // Advanced Recursive Field Detection with Shadow DOM Piercing
+  useEffect(() => {
+    if (state.dictation && state.dictation.id) {
+      localStorage.setItem(DICTATION_KEY, JSON.stringify(state.dictation));
+    } else {
+      localStorage.removeItem(DICTATION_KEY);
+    }
+  }, [state.dictation]);
+
+  useEffect(() => {
+    if (route !== 'main') {
+      setFieldValues({});
+      setFocusedFieldId(null);
+      setState(prev => ({
+        ...prev,
+        suggestions: {},
+        filledStatus: {},
+        isAnalyzing: false,
+      }));
+    }
+  }, [route]);
+
   const detectFieldsRecursive = useCallback((root: ParentNode | ShadowRoot): FormFieldMetadata[] => {
     let fields: FormFieldMetadata[] = [];
     const selectors = 'input:not([type="hidden"]), select, textarea, [role="textbox"], [contenteditable="true"]';
@@ -118,6 +153,7 @@ const App: React.FC = () => {
       return { ...prev, fields: newFields };
     });
 
+    // Check Vault for 'Always Use' preferences
     const savedPreferences = localStorage.getItem(STORAGE_KEY);
     if (savedPreferences) {
       try {
@@ -127,7 +163,9 @@ const App: React.FC = () => {
         let updated = false;
 
         newFields.forEach(field => {
-          const prefValue = preferences[field.id] || preferences[field.label];
+          // Priority for auto-fill: ID > Label > Name
+          const prefValue = preferences[field.id] || preferences[field.label] || preferences[field.name || ''];
+          
           if (prefValue && !fieldValues[field.id]) {
             autoFilledValues[field.id] = prefValue;
             autoFilledStatus[field.id] = true;
@@ -136,41 +174,38 @@ const App: React.FC = () => {
         });
 
         if (updated) {
-          setFieldValues(v => ({ ...v, ...autoFilledValues }));
-          setState(s => ({ ...s, filledStatus: { ...s.filledStatus, ...autoFilledStatus } }));
+          setFieldValues(prev => ({ ...prev, ...autoFilledValues }));
+          setState(s => ({ 
+            ...s, 
+            filledStatus: { ...s.filledStatus, ...autoFilledStatus } 
+          }));
         }
       } catch (e) {
-        console.error("Failed to parse saved preferences", e);
+        console.error("Vault retrieval error:", e);
       }
     }
   }, [fieldValues, detectFieldsRecursive]);
 
   useEffect(() => {
+    if (route !== 'main') return;
+    
     detectFields();
     const simulationContainer = document.querySelector('.browser-simulation-content');
     if (simulationContainer) {
       observerRef.current = new MutationObserver((mutations) => {
         const hasNodeChanges = mutations.some(m => m.addedNodes.length > 0 || m.removedNodes.length > 0);
-        if (hasNodeChanges) {
-          detectFields();
-        }
+        if (hasNodeChanges) detectFields();
       });
       observerRef.current.observe(simulationContainer, { childList: true, subtree: true });
     }
 
     window.addEventListener('resize', detectFields);
-    
     const handleFocus = (e: FocusEvent) => {
-        const target = e.target as HTMLElement;
-        const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || 
-                        target.getAttribute('role') === 'textbox' || 
-                        target.getAttribute('contenteditable') === 'true';
-                        
-        if (target.id && isInput) {
-          setFocusedFieldId(target.id);
-        }
+      const target = e.target as HTMLElement;
+      if (target.id && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.getAttribute('role') === 'textbox')) {
+        setFocusedFieldId(target.id);
+      }
     };
-    
     window.addEventListener('focusin', handleFocus);
     
     return () => {
@@ -178,17 +213,17 @@ const App: React.FC = () => {
       window.removeEventListener('resize', detectFields);
       window.removeEventListener('focusin', handleFocus);
     };
-  }, [detectFields]);
+  }, [detectFields, route]);
 
   useEffect(() => {
-    if (state.fields.length > 0 && !state.isAnalyzing) {
+    if (route === 'main' && state.fields.length > 0 && !state.isAnalyzing) {
       (async () => {
         setState(prev => ({ ...prev, isAnalyzing: true }));
         const suggestions = await geminiService.analyzeForm(state.fields, userProfile);
         setState(prev => ({ ...prev, suggestions, isAnalyzing: false }));
       })();
     }
-  }, [state.fields.length, userProfile]);
+  }, [state.fields.length, userProfile, route]);
 
   const handleManualChange = (id: string, value: string) => {
     setFieldValues(v => ({ ...v, [id]: value }));
@@ -199,10 +234,8 @@ const App: React.FC = () => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       setState(s => ({ ...s, dictation: { id: fieldId, interimText: "", isListening: true } }));
-
       dictationAudioInRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         callbacks: {
@@ -213,9 +246,7 @@ const App: React.FC = () => {
               const inputData = e.inputBuffer.getChannelData(0);
               const int16 = new Int16Array(inputData.length);
               for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i] * 32768;
-              sessionPromise.then(session => session.sendRealtimeInput({ 
-                media: { data: encode(new Uint8Array(int16.buffer)), mimeType: 'audio/pcm;rate=16000' } 
-              }));
+              sessionPromise.then(session => session.sendRealtimeInput({ media: { data: encode(new Uint8Array(int16.buffer)), mimeType: 'audio/pcm;rate=16000' } }));
             };
             source.connect(scriptProcessor);
             scriptProcessor.connect(dictationAudioInRef.current!.destination);
@@ -223,38 +254,29 @@ const App: React.FC = () => {
           onmessage: async (message) => {
             if (message.serverContent?.inputTranscription) {
               const text = message.serverContent.inputTranscription.text;
-              setState(s => ({
-                ...s,
-                dictation: s.dictation ? { ...s.dictation, interimText: s.dictation.interimText + text } : s.dictation
-              }));
+              setState(s => ({ ...s, dictation: s.dictation ? { ...s.dictation, interimText: s.dictation.interimText + text } : s.dictation }));
             }
           },
-          onclose: () => stopDictation(),
-          onerror: (e) => {
-            console.error("Dictation Error:", e);
-            stopDictation();
-          }
+          onclose: () => setState(s => ({ ...s, dictation: s.dictation ? { ...s.dictation, isListening: false } : s.dictation })),
+          onerror: (e) => setState(s => ({ ...s, dictation: s.dictation ? { ...s.dictation, isListening: false } : s.dictation }))
         },
         config: {
           responseModalities: [Modality.AUDIO],
           inputAudioTranscription: {},
-          systemInstruction: "You are a transcription assistant. Only transcribe the user's speech accurately into text. No conversation."
+          systemInstruction: "You are a transcription assistant. Transcribe the user's speech accurately."
         }
       });
       dictationSessionRef.current = await sessionPromise;
     } catch (err) {
-      console.error(err);
-      stopDictation();
+      setState(s => ({ ...s, dictation: s.dictation ? { ...s.dictation, isListening: false } : s.dictation }));
     }
   };
 
   const stopDictation = () => {
     if (state.dictation?.id && state.dictation?.interimText) {
       const currentVal = fieldValues[state.dictation.id] || "";
-      const space = currentVal ? " " : "";
-      handleManualChange(state.dictation.id, currentVal + space + state.dictation.interimText);
+      handleManualChange(state.dictation.id, currentVal + (currentVal ? " " : "") + state.dictation.interimText);
     }
-
     dictationSessionRef.current?.close();
     dictationAudioInRef.current?.close();
     setState(s => ({ ...s, dictation: { id: null, interimText: "", isListening: false } }));
@@ -268,16 +290,26 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAlwaysUse = (id: string) => {
+  const handleAlwaysUse = async (id: string) => {
     const s = state.suggestions[id];
     const field = state.fields.find(f => f.id === id);
     if (s && field) {
-      const savedPreferences = localStorage.getItem(STORAGE_KEY);
-      const preferences = savedPreferences ? JSON.parse(savedPreferences) : {};
-      preferences[id] = s.value;
+      const saved = localStorage.getItem(STORAGE_KEY);
+      const preferences = saved ? JSON.parse(saved) : {};
+      
+      // Store under stable keys for cross-form recognition
       if (field.label) preferences[field.label] = s.value;
+      if (field.name) preferences[field.name] = s.value;
+      preferences[id] = s.value;
+      
       localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
-      handleAcceptSuggestion(id);
+      
+      // Fill immediately
+      handleManualChange(id, s.value);
+      
+      // Feedback delay before card dismissal
+      await new Promise(resolve => setTimeout(resolve, 800));
+      setFocusedFieldId(null);
     }
   };
 

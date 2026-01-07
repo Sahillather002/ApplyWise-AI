@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { AISuggestion } from '../types';
-import { Check, X, Edit2, Zap, Info, FileText, Search, Quote, ShieldCheck } from 'lucide-react';
+import { Check, X, Edit2, Zap, Info, FileText, Search, Quote, ShieldCheck, CheckCheck } from 'lucide-react';
 
 interface SuggestionCardProps {
   suggestion: AISuggestion;
@@ -13,6 +13,7 @@ interface SuggestionCardProps {
 
 const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, rect, onAccept, onSkip, onAlwaysUse }) => {
   const [showSource, setShowSource] = useState(false);
+  const [isVaulted, setIsVaulted] = useState(false);
 
   // Positioning logic: try to place below the field
   const style: React.CSSProperties = {
@@ -26,6 +27,11 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, rect, onAcc
     suggestion.confidence === 'high' ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 
     suggestion.confidence === 'medium' ? 'text-amber-600 bg-amber-50 border-amber-100' : 
     'text-red-600 bg-red-50 border-red-100';
+
+  const handleAlwaysUse = () => {
+    setIsVaulted(true); // Immediate UI feedback for saving
+    onAlwaysUse();
+  };
 
   return (
     <div 
@@ -79,7 +85,6 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, rect, onAcc
 
       {/* Footer Actions */}
       <div className="px-5 py-4 bg-slate-50/80 border-t border-slate-100 flex flex-col space-y-3">
-        {/* Toggle Button for Source Section */}
         <div className="flex space-x-2">
           <button 
             onClick={() => setShowSource(!showSource)}
@@ -103,11 +108,25 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, rect, onAcc
           </button>
           
           <button 
-            onClick={onAlwaysUse}
-            className="flex-1 py-2.5 px-4 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center space-x-2 border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 shadow-sm"
+            onClick={handleAlwaysUse}
+            disabled={isVaulted}
+            className={`flex-1 py-2.5 px-4 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center space-x-2 border shadow-sm ${
+              isVaulted 
+              ? 'bg-emerald-600 text-white border-emerald-600 scale-[1.02] shadow-emerald-500/20' 
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200'
+            }`}
           >
-            <ShieldCheck size={14} />
-            <span>Always Use</span>
+            {isVaulted ? (
+              <>
+                <CheckCheck size={14} className="animate-in zoom-in-50 duration-300" />
+                <span>Vaulted!</span>
+              </>
+            ) : (
+              <>
+                <ShieldCheck size={14} />
+                <span>Always Use</span>
+              </>
+            )}
           </button>
         </div>
 

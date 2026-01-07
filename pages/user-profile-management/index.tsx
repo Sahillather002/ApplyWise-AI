@@ -1,11 +1,12 @@
 
 import React, { useState } from 'react';
-import { User, Mail, Phone, MapPin, Save, Shield, Cpu, Activity, GraduationCap, Briefcase, Sparkles } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Save, Shield, Cpu, Activity, GraduationCap, Briefcase, Sparkles, BarChart3 } from 'lucide-react';
 import WorkExperienceTab from './components/WorkExperienceTab';
 import SkillsTab from './components/SkillsTab';
 import ProfileCompletion from './components/ProfileCompletion';
 import UsageStatistics from './components/UsageStatistics';
 import ImportResume from './components/ImportResume';
+import CareerVisualizer from './components/CareerVisualizer';
 import { UserProfile } from '../../types';
 import { geminiService } from '../../services/geminiService';
 
@@ -15,7 +16,7 @@ interface UserProfileManagementProps {
 }
 
 const UserProfileManagement: React.FC<UserProfileManagementProps> = ({ profile, onUpdate }) => {
-  const [activeTab, setActiveTab] = useState<'work' | 'skills' | 'basic'>('work');
+  const [activeTab, setActiveTab] = useState<'work' | 'skills' | 'basic' | 'visuals'>('work');
   const [isImporting, setIsImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState(false);
 
@@ -41,7 +42,6 @@ const UserProfileManagement: React.FC<UserProfileManagementProps> = ({ profile, 
       const fileData = await fileDataPromise;
       const parsedData = await geminiService.parseResume(fileData, file.type);
       
-      // Merge parsed data into existing profile with careful array handling
       onUpdate({
         ...profile,
         ...parsedData,
@@ -52,8 +52,6 @@ const UserProfileManagement: React.FC<UserProfileManagementProps> = ({ profile, 
       
       setImportSuccess(true);
       setTimeout(() => setImportSuccess(false), 5000);
-      
-      // Switch to work tab to show results
       setActiveTab('work');
     } catch (error) {
       console.error("Import failed:", error);
@@ -94,7 +92,6 @@ const UserProfileManagement: React.FC<UserProfileManagementProps> = ({ profile, 
 
         <div className="grid grid-cols-12 gap-8">
           <div className="col-span-12 lg:col-span-8 space-y-8">
-            {/* Main Tabs UI */}
             <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-[2.5rem] p-8 shadow-sm">
               <div className="flex items-center space-x-8 border-b border-slate-100 dark:border-white/5 pb-6 mb-8 overflow-x-auto no-scrollbar">
                  <button 
@@ -106,6 +103,12 @@ const UserProfileManagement: React.FC<UserProfileManagementProps> = ({ profile, 
                    onClick={() => setActiveTab('skills')}
                    className={`text-sm font-black uppercase tracking-widest pb-4 border-b-2 transition-all whitespace-nowrap ${activeTab === 'skills' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-500'}`}>
                    Skills & Tech
+                 </button>
+                 <button 
+                   onClick={() => setActiveTab('visuals')}
+                   className={`text-sm font-black uppercase tracking-widest pb-4 border-b-2 transition-all whitespace-nowrap flex items-center space-x-2 ${activeTab === 'visuals' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-500'}`}>
+                   <BarChart3 size={14} />
+                   <span>Visual Insights</span>
                  </button>
                  <button 
                    onClick={() => setActiveTab('basic')}
@@ -126,6 +129,9 @@ const UserProfileManagement: React.FC<UserProfileManagementProps> = ({ profile, 
                     skills={profile.skills} 
                     onUpdate={(newSkills) => handleUpdateField('skills', newSkills)} 
                   />
+                )}
+                {activeTab === 'visuals' && (
+                  <CareerVisualizer profile={profile} />
                 )}
                 {activeTab === 'basic' && (
                   <div className="space-y-8 animate-in fade-in duration-300">

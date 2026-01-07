@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   CheckCircle, Circle, Zap, User, Database, Video, Upload, 
-  Play, Download, Loader2, MessageSquare, Mic, StopCircle, Volume2, Send, ShieldCheck
+  Play, Download, Loader2, MessageSquare, Mic, StopCircle, Volume2, Send, ShieldCheck, Trash2, Key
 } from 'lucide-react';
 import { ApplicationState, SidebarTab, InterviewSession, ChatMessage, UserProfile } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -16,6 +16,8 @@ interface SidebarProps {
   onVideoStateUpdate: (videoState: any) => void;
   onInterviewUpdate: (interview: InterviewSession) => void;
 }
+
+const STORAGE_KEY = 'applywise_always_use_map';
 
 function encode(bytes: Uint8Array) {
   let binary = '';
@@ -66,6 +68,8 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  const [vaultItems, setVaultItems] = useState<Record<string, string>>({});
+
   const sessionRef = useRef<any>(null);
   const audioContextInRef = useRef<AudioContext | null>(null);
   const audioContextOutRef = useRef<AudioContext | null>(null);
@@ -79,6 +83,19 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, isTyping]);
+
+  useEffect(() => {
+    if (state.activeTab === 'vault') {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          setVaultItems(JSON.parse(saved));
+        } catch (e) {
+          console.error("Failed to parse vault items", e);
+        }
+      }
+    }
+  }, [state.activeTab]);
 
   const TabButton = ({ id, icon: Icon, label }: { id: SidebarTab, icon: any, label: string }) => (
     <button 
@@ -103,7 +120,7 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
             onInterviewUpdate({ ...state.interview, isActive: true, transcription: ["Coach connected. Listening..."] });
@@ -211,6 +228,13 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
       reader.onloadend = () => setSelectedImage(reader.result as string);
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleRemoveVaultItem = (key: string) => {
+    const updated = { ...vaultItems };
+    delete updated[key];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    setVaultItems(updated);
   };
 
   return (
@@ -358,10 +382,51 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
         )}
 
         {state.activeTab === 'vault' && (
-          <div className="p-10 text-center space-y-4">
-            <ShieldCheck size={48} className="mx-auto text-emerald-500/20" />
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Local Vault Active</p>
-            <p className="text-[11px] text-slate-400">All application data is stored locally and protected with hardware-level encryption.</p>
+          <div className="p-6 space-y-6">
+            <div className="text-center space-y-2 mb-6">
+              <ShieldCheck size={40} className="mx-auto text-emerald-500" />
+              <p className="text-xs font-bold text-white uppercase tracking-widest">Local-First Vault</p>
+              <p className="text-[10px] text-slate-500">Managing persistent 'Always Use' field mappings.</p>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-[10px] uppercase tracking-widest text-slate-500 font-bold px-1">Saved Preferences</h3>
+              {Object.keys(vaultItems).length === 0 ? (
+                <div className="bg-white/5 border border-dashed border-white/10 rounded-xl p-8 text-center">
+                  <Key size={24} className="mx-auto text-slate-700 mb-2 opacity-30" />
+                  <p className="text-[10px] text-slate-600 uppercase font-black">No preferences stored yet</p>
+                  <p className="text-[9px] text-slate-700 mt-1 italic">Use 'Always Use' on AI suggestions to see them here.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {Object.entries(vaultItems).map(([key, value]) => (
+                    <div key={key} className="bg-white/5 border border-white/5 rounded-xl p-3 flex items-center justify-between group transition-all hover:bg-white/10">
+                      <div className="flex-1 min-w-0 pr-4">
+                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter truncate">{key}</p>
+                        <p className="text-xs text-slate-300 truncate mt-0.5">{value}</p>
+                      </div>
+                      <button 
+                        onClick={() => handleRemoveVaultItem(key)}
+                        className="p-2 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                        title="Delete preference"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-8 p-4 bg-indigo-900/10 border border-indigo-500/20 rounded-xl">
+              <div className="flex items-center space-x-2 text-[10px] font-black text-indigo-400 mb-2 uppercase tracking-[0.1em]">
+                <ShieldCheck size={14} />
+                <span>Security Notice</span>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-relaxed italic">
+                These mappings are stored in your browser's private local storage. They are never synced to a cloud database, ensuring your persistent preferences remain under your control.
+              </p>
+            </div>
           </div>
         )}
       </div>
