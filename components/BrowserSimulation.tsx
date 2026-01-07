@@ -22,7 +22,7 @@ const BrowserSimulation: React.FC<BrowserSimulationProps> = ({ children }) => {
       </div>
       
       {/* Page Content */}
-      <div className="max-w-3xl mx-auto py-12 px-8">
+      <div className="browser-simulation-content max-w-3xl mx-auto py-12 px-8">
         <header className="mb-10">
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl">I</div>
@@ -31,7 +31,7 @@ const BrowserSimulation: React.FC<BrowserSimulationProps> = ({ children }) => {
           <p className="text-slate-500">Apply for Senior Frontend Engineer &middot; Remote &middot; Full-time</p>
         </header>
 
-        <section id="application-form" className="space-y-8">
+        <section className="space-y-8">
           {children}
         </section>
 

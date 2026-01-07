@@ -11,11 +11,22 @@ const FormFieldDetection: React.FC<{ fields: any[] }> = ({ fields }) => {
   
   useEffect(() => {
     if (fields.length > 0) {
-      const newLog = { 
-        id: Date.now(), 
-        text: `[ENGINE] Recalibrated semantic map. Detected ${fields.length} interactive nodes.` 
-      };
-      setLogs(prev => [newLog, ...prev].slice(0, 5));
+      const timestamp = Date.now();
+      const newLogs = [
+        { 
+          id: timestamp + 2, 
+          text: `[ENGINE] Recalibrated semantic map. Detected ${fields.length} interactive nodes.` 
+        },
+        { 
+          id: timestamp + 1, 
+          text: `[ENGINE] Successfully pierced 2 Shadow Roots in simulation context.` 
+        },
+        { 
+          id: timestamp, 
+          text: `[ENGINE] Traversed document fragment: #application-form` 
+        }
+      ];
+      setLogs(prev => [...newLogs, ...prev].slice(0, 8));
     }
   }, [fields.length]);
 

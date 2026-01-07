@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
-import { User, Mail, Phone, MapPin, Save, Shield, Cpu, Activity, GraduationCap, Briefcase } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Save, Shield, Cpu, Activity, GraduationCap, Briefcase, Sparkles } from 'lucide-react';
 import WorkExperienceTab from './components/WorkExperienceTab';
 import SkillsTab from './components/SkillsTab';
 import ProfileCompletion from './components/ProfileCompletion';
 import UsageStatistics from './components/UsageStatistics';
 import ImportResume from './components/ImportResume';
 import { UserProfile } from '../../types';
+import { geminiService } from '../../services/geminiService';
 
 interface UserProfileManagementProps {
   profile: UserProfile;
@@ -15,14 +16,63 @@ interface UserProfileManagementProps {
 
 const UserProfileManagement: React.FC<UserProfileManagementProps> = ({ profile, onUpdate }) => {
   const [activeTab, setActiveTab] = useState<'work' | 'skills' | 'basic'>('work');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importSuccess, setImportSuccess] = useState(false);
 
   const handleUpdateField = (field: keyof UserProfile, value: any) => {
     onUpdate({ ...profile, [field]: value });
   };
 
+  const handleResumeImport = async (file: File) => {
+    setIsImporting(true);
+    setImportSuccess(false);
+    try {
+      const reader = new FileReader();
+      const fileDataPromise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64 = result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(file);
+      
+      const fileData = await fileDataPromise;
+      const parsedData = await geminiService.parseResume(fileData, file.type);
+      
+      // Merge parsed data into existing profile with careful array handling
+      onUpdate({
+        ...profile,
+        ...parsedData,
+        experience: (parsedData.experience && parsedData.experience.length > 0) ? parsedData.experience : profile.experience,
+        education: (parsedData.education && parsedData.education.length > 0) ? parsedData.education : profile.education,
+        skills: (parsedData.skills && parsedData.skills.length > 0) ? parsedData.skills : profile.skills,
+      });
+      
+      setImportSuccess(true);
+      setTimeout(() => setImportSuccess(false), 5000);
+      
+      // Switch to work tab to show results
+      setActiveTab('work');
+    } catch (error) {
+      console.error("Import failed:", error);
+      alert("Failed to parse resume. Gemini 3 Flash works best with text-heavy PDFs and standard document formats.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
     <div className="flex-1 h-full overflow-y-auto custom-scrollbar bg-slate-50 dark:bg-slate-950 transition-colors">
       <div className="p-8 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24">
+        {importSuccess && (
+          <div className="mb-6 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 p-4 rounded-2xl flex items-center space-x-3 animate-in slide-in-from-top-4">
+            <Sparkles size={20} />
+            <p className="text-sm font-bold">Profile pre-filled successfully! Review the extracted data below.</p>
+          </div>
+        )}
+
         <header className="flex flex-col md:flex-row items-center justify-between mb-12 space-y-4 md:space-y-0">
           <div className="flex items-center space-x-4">
             <div className="w-16 h-16 bg-indigo-600 rounded-3xl flex items-center justify-center text-white shadow-xl shadow-indigo-500/20">
@@ -34,7 +84,7 @@ const UserProfileManagement: React.FC<UserProfileManagementProps> = ({ profile, 
             </div>
           </div>
           <div className="flex items-center space-x-4">
-            <ImportResume />
+            <ImportResume onImport={handleResumeImport} isImporting={isImporting} />
             <button className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/10 active:scale-95">
               <Save size={18} />
               <span>Sync Vault</span>

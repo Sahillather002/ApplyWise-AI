@@ -80,4 +80,9 @@ export interface ApplicationState {
   isResearching: boolean;
   videoState: VideoState;
   interview: InterviewSession;
+  dictation?: {
+    id: string | null;
+    interimText: string;
+    isListening: boolean;
+  };
 }

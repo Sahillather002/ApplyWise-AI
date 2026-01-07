@@ -73,18 +73,6 @@ export class GeminiService {
 
   async chat(message: string, history: ChatMessage[], profile: UserProfile): Promise<string> {
     const ai = this.getClient();
-    const chat = ai.chats.create({
-      model: 'gemini-3-pro-preview',
-      config: {
-        systemInstruction: `You are ApplyWise Advisor. 
-        User Profile: ${JSON.stringify(profile)}.
-        Help with applications, interview prep, and career strategy. Be professional and data-driven.`,
-        thinkingConfig: { thinkingBudget: 1024 }
-      }
-    });
-
-    // Provide history manually since ai.chats doesn't take history in create() in this SDK version
-    // Instead we use generateContent for multi-turn if we need to manage history manually
     const contents = history.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }]
@@ -143,6 +131,85 @@ export class GeminiService {
     const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
     const blob = await response.blob();
     return URL.createObjectURL(blob);
+  }
+
+  async parseResume(fileData: string, mimeType: string): Promise<Partial<UserProfile>> {
+    try {
+      const ai = this.getClient();
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: [
+          {
+            inlineData: {
+              data: fileData,
+              mimeType: mimeType
+            }
+          },
+          {
+            text: `You are a professional career data extraction engine. Parse the attached resume and return a highly structured JSON object. 
+            Include:
+            - Basic info: fullName, email, phone, location.
+            - Socials: linkedin, github, website.
+            - summary: professional objective.
+            - experience: Array of { company, role, duration, description }.
+            - education: Array of { school, degree, year }.
+            - skills: Array of strings.
+            Ensure dates are standardized and descriptions are concise.`
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              fullName: { type: Type.STRING },
+              email: { type: Type.STRING },
+              phone: { type: Type.STRING },
+              location: { type: Type.STRING },
+              linkedin: { type: Type.STRING },
+              github: { type: Type.STRING },
+              website: { type: Type.STRING },
+              summary: { type: Type.STRING },
+              experience: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    company: { type: Type.STRING },
+                    role: { type: Type.STRING },
+                    duration: { type: Type.STRING },
+                    description: { type: Type.STRING }
+                  },
+                  required: ["company", "role", "duration", "description"]
+                }
+              },
+              education: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    school: { type: Type.STRING },
+                    degree: { type: Type.STRING },
+                    year: { type: Type.STRING }
+                  },
+                  required: ["school", "degree", "year"]
+                }
+              },
+              skills: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              }
+            }
+          }
+        }
+      });
+      
+      const parsed = JSON.parse(response.text || '{}');
+      return parsed;
+    } catch (e) {
+      console.error("Resume parsing failed:", e);
+      throw e;
+    }
   }
 }
 
