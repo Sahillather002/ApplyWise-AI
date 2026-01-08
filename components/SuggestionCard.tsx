@@ -1,19 +1,21 @@
 
 import React, { useState } from 'react';
 import { AISuggestion } from '../types';
-import { Check, X, Edit2, Zap, Info, FileText, Search, Quote, ShieldCheck, CheckCheck } from 'lucide-react';
+import { Check, X, Edit2, Zap, Info, FileText, Search, Quote, ShieldCheck, CheckCheck, Save, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface SuggestionCardProps {
   suggestion: AISuggestion;
   rect: DOMRect;
-  onAccept: () => void;
+  onAccept: (value: string) => void;
   onSkip: () => void;
-  onAlwaysUse: () => void;
+  onAlwaysUse: (value: string) => void;
 }
 
 const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, rect, onAccept, onSkip, onAlwaysUse }) => {
   const [showSource, setShowSource] = useState(false);
   const [isVaulted, setIsVaulted] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedValue, setEditedValue] = useState(suggestion.value);
 
   // Positioning logic: try to place below the field
   const style: React.CSSProperties = {
@@ -30,7 +32,11 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, rect, onAcc
 
   const handleAlwaysUse = () => {
     setIsVaulted(true); // Immediate UI feedback for saving
-    onAlwaysUse();
+    onAlwaysUse(editedValue);
+  };
+
+  const handleAccept = () => {
+    onAccept(editedValue);
   };
 
   return (
@@ -53,11 +59,20 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, rect, onAcc
 
       {/* Body */}
       <div className="p-5 space-y-4">
-        {/* Suggested Value */}
-        <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 group hover:bg-white hover:border-indigo-100 transition-all">
-          <p className="text-sm text-slate-900 leading-relaxed font-semibold italic text-balance">
-            "{suggestion.value}"
-          </p>
+        {/* Suggested Value / Editor */}
+        <div className={`bg-slate-50 border rounded-xl transition-all ${isEditing ? 'border-indigo-500 ring-4 ring-indigo-500/10 p-2' : 'border-slate-100 p-4 hover:bg-white hover:border-indigo-100'}`}>
+          {isEditing ? (
+            <textarea 
+              value={editedValue}
+              onChange={(e) => setEditedValue(e.target.value)}
+              className="w-full bg-white text-sm text-slate-900 leading-relaxed font-semibold italic resize-none outline-none min-h-[60px]"
+              autoFocus
+            />
+          ) : (
+            <p className="text-sm text-slate-900 leading-relaxed font-semibold italic text-balance">
+              "{editedValue}"
+            </p>
+          )}
         </div>
         
         {/* Reasoning */}
@@ -66,17 +81,21 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, rect, onAcc
           <p className="leading-normal">{suggestion.reasoning}</p>
         </div>
 
-        {/* Retractable Source Insight Panel */}
-        {showSource && suggestion.sourceExcerpt && (
-          <div className="mt-2 space-y-2 animate-in slide-in-from-top-1 duration-200">
-            <div className="flex items-center space-x-2 px-1">
-              <FileText size={12} className="text-amber-600" />
-              <span className="text-[10px] font-bold text-amber-700 uppercase tracking-tighter">Extracted from {suggestion.source}</span>
+        {/* Expandable Source Insight Panel */}
+        {showSource && (
+          <div className="mt-2 space-y-3 p-4 bg-amber-50/40 border border-amber-100 rounded-xl animate-in slide-in-from-top-1 duration-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <FileText size={12} className="text-amber-600" />
+                <span className="text-[10px] font-black text-amber-700 uppercase tracking-tighter">Verified Source: {suggestion.source}</span>
+              </div>
+              <ShieldCheck size={12} className="text-emerald-500" />
             </div>
-            <div className="p-4 bg-amber-50/50 border border-amber-200/40 rounded-xl relative overflow-hidden group">
-              <Quote size={24} className="absolute -right-1 -bottom-1 text-amber-200/50 -rotate-12 group-hover:scale-110 transition-transform" />
-              <p className="text-[11px] text-slate-600 leading-relaxed italic relative z-10">
-                "{suggestion.sourceExcerpt}"
+            
+            <div className="relative group">
+              <Quote size={20} className="absolute -left-1 -top-1 text-amber-200/50 -rotate-12" />
+              <p className="text-[11px] text-slate-600 leading-relaxed italic pl-5 pr-2">
+                {suggestion.sourceExcerpt || "No specific excerpt was provided for this suggestion."}
               </p>
             </div>
           </div>
@@ -96,13 +115,13 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, rect, onAcc
           >
             {showSource ? (
               <>
-                <Search size={14} className="rotate-45" />
+                <ChevronUp size={14} />
                 <span>Hide Evidence</span>
               </>
             ) : (
               <>
-                <FileText size={14} />
-                <span>View Source</span>
+                <ChevronDown size={14} />
+                <span>View Source Section</span>
               </>
             )}
           </button>
@@ -118,7 +137,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, rect, onAcc
           >
             {isVaulted ? (
               <>
-                <CheckCheck size={14} className="animate-in zoom-in-50 duration-300" />
+                <CheckCheck size={14} />
                 <span>Vaulted!</span>
               </>
             ) : (
@@ -139,13 +158,29 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, rect, onAcc
             <X size={20} />
           </button>
           
-          <button className="flex-[2] px-4 py-2.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center space-x-2 shadow-sm">
-            <Edit2 size={14} />
-            <span>Edit</span>
+          <button 
+            onClick={() => setIsEditing(!isEditing)}
+            className={`flex-[2] px-4 py-2.5 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center space-x-2 shadow-sm ${
+              isEditing 
+              ? 'bg-indigo-50 text-indigo-600 border-indigo-200' 
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            {isEditing ? (
+              <>
+                <Check size={14} />
+                <span>Done</span>
+              </>
+            ) : (
+              <>
+                <Edit2 size={14} />
+                <span>Edit</span>
+              </>
+            )}
           </button>
           
           <button 
-            onClick={onAccept}
+            onClick={handleAccept}
             className="flex-[3] px-4 py-2.5 text-xs font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all flex items-center justify-center space-x-2 shadow-lg shadow-indigo-100 active:scale-[0.98]"
           >
             <Check size={18} />

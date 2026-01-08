@@ -46,9 +46,9 @@ const AISuggestionCardsPage: React.FC = () => {
                        <SuggestionCard 
                          suggestion={mockSuggestion}
                          rect={new DOMRect(0, 0, 300, 40)}
-                         onAccept={() => {}}
+                         onAccept={(val) => console.log('Accepted:', val)}
                          onSkip={() => {}}
-                         onAlwaysUse={() => {}}
+                         onAlwaysUse={(val) => console.log('Vaulted:', val)}
                        />
                     </div>
                  </div>

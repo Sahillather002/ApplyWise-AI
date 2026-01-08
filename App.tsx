@@ -282,30 +282,33 @@ const App: React.FC = () => {
     setState(s => ({ ...s, dictation: { id: null, interimText: "", isListening: false } }));
   };
 
-  const handleAcceptSuggestion = (id: string) => {
+  const handleAcceptSuggestion = (id: string, value?: string) => {
     const s = state.suggestions[id];
-    if (s) {
-      handleManualChange(id, s.value);
+    const finalValue = value !== undefined ? value : (s ? s.value : '');
+    if (finalValue) {
+      handleManualChange(id, finalValue);
       setFocusedFieldId(null);
     }
   };
 
-  const handleAlwaysUse = async (id: string) => {
+  const handleAlwaysUse = async (id: string, value?: string) => {
     const s = state.suggestions[id];
     const field = state.fields.find(f => f.id === id);
-    if (s && field) {
+    const finalValue = value !== undefined ? value : (s ? s.value : '');
+    
+    if (finalValue && field) {
       const saved = localStorage.getItem(STORAGE_KEY);
       const preferences = saved ? JSON.parse(saved) : {};
       
       // Store under stable keys for cross-form recognition
-      if (field.label) preferences[field.label] = s.value;
-      if (field.name) preferences[field.name] = s.value;
-      preferences[id] = s.value;
+      if (field.label) preferences[field.label] = finalValue;
+      if (field.name) preferences[field.name] = finalValue;
+      preferences[id] = finalValue;
       
       localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
       
       // Fill immediately
-      handleManualChange(id, s.value);
+      handleManualChange(id, finalValue);
       
       // Feedback delay before card dismissal
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -353,9 +356,9 @@ const App: React.FC = () => {
                   key={`card-${field.id}`}
                   suggestion={suggestion}
                   rect={field.rect}
-                  onAccept={() => handleAcceptSuggestion(field.id)}
+                  onAccept={(val) => handleAcceptSuggestion(field.id, val)}
                   onSkip={() => setFocusedFieldId(null)}
-                  onAlwaysUse={() => handleAlwaysUse(field.id)}
+                  onAlwaysUse={(val) => handleAlwaysUse(field.id, val)}
                 />
               );
             })}
