@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect } from 'react';
 
 const Particles: React.FC = () => {
@@ -7,7 +6,7 @@ const Particles: React.FC = () => {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
     let particles: Particle[] = [];
@@ -24,10 +23,10 @@ const Particles: React.FC = () => {
       constructor() {
         this.x = Math.random() * canvas!.width;
         this.y = Math.random() * canvas!.height;
-        this.size = Math.random() * 2 + 0.5;
-        this.speedX = Math.random() * 0.5 - 0.25;
-        this.speedY = Math.random() * 0.5 - 0.25;
-        this.opacity = Math.random() * 0.5 + 0.1;
+        this.size = Math.random() * 1.5 + 0.5;
+        this.speedX = Math.random() * 0.3 - 0.15;
+        this.speedY = Math.random() * 0.3 - 0.15;
+        this.opacity = Math.random() * 0.3 + 0.1;
       }
 
       update() {
@@ -53,7 +52,8 @@ const Particles: React.FC = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       particles = [];
-      const numberOfParticles = (canvas.width * canvas.height) / 15000;
+      // Dynamic count with a hard cap for performance
+      const numberOfParticles = Math.min(Math.floor((canvas.width * canvas.height) / 25000), 80);
       for (let i = 0; i < numberOfParticles; i++) {
         particles.push(new Particle());
       }
@@ -61,28 +61,31 @@ const Particles: React.FC = () => {
 
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach((p) => {
-        p.update();
-        p.draw();
-      });
+      for (let i = 0; i < particles.length; i++) {
+        particles[i].update();
+        particles[i].draw();
+      }
       animationFrameId = requestAnimationFrame(animate);
     };
 
     init();
     animate();
 
+    let resizeTimeout: number;
     const handleResize = () => {
-      init();
+      clearTimeout(resizeTimeout);
+      resizeTimeout = window.setTimeout(init, 200);
     };
 
     window.addEventListener('resize', handleResize);
     return () => {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
+      clearTimeout(resizeTimeout);
     };
   }, []);
 
-  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-0 opacity-40 dark:opacity-20" />;
+  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-0 opacity-30 dark:opacity-20 transition-opacity duration-1000" />;
 };
 
 export default Particles;
