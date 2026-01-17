@@ -30,7 +30,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
           <a href="#" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-2">Platform</a>
           <a href="#" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-2">Intelligence</a>
           <a href="#" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-2">Security</a>
-          <button 
+          <button
             onClick={onStart}
             className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-8 py-3 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] hover:shadow-2xl hover:shadow-indigo-500/20 hover:-translate-y-1 transition-all active:scale-95"
           >
@@ -46,7 +46,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
             <Sparkles size={16} className="text-indigo-600 dark:text-indigo-400 animate-pulse" />
             <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.3em]">Next-Gen Career Intelligence</span>
           </div>
-          
+
           <div className="space-y-4">
             <h1 className="text-6xl md:text-8xl xl:text-9xl font-black text-slate-900 dark:text-white tracking-tighter leading-[0.85] italic">
               APPLY <span className="text-indigo-600 drop-shadow-[0_0_30px_rgba(79,70,229,0.3)]">SMARTER</span>,<br />
@@ -54,13 +54,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
             </h1>
             <div className="h-1.5 w-24 bg-indigo-600 rounded-full lg:mx-0 mx-auto" />
           </div>
-          
+
           <p className="text-xl md:text-2xl text-slate-500 dark:text-slate-400 max-w-2xl font-medium leading-relaxed mx-auto lg:mx-0 text-balance">
-            ApplyWise leverages decentralized AI to map your career graph to global opportunities with <span className="text-slate-900 dark:text-white font-bold">99% accuracy</span>. Securely vault your data and automate the tedious.
+            ApplyWise leverages advanced AI to map your career journey to global opportunities with <span className="text-slate-900 dark:text-white font-bold">99% accuracy</span>. Securely store your data and automate the tedious.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start space-y-5 sm:space-y-0 sm:space-x-6 pt-6">
-            <button 
+            <button
               onClick={onStart}
               className="group bg-indigo-600 hover:bg-indigo-500 text-white px-12 py-6 rounded-[2.5rem] font-black text-xl uppercase tracking-tighter transition-all shadow-[0_20px_50px_rgba(79,70,229,0.4)] flex items-center space-x-4 active:scale-95 hover:-translate-y-1"
             >
@@ -74,13 +74,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
 
           <div className="flex items-center justify-center lg:justify-start space-x-12 pt-16">
             <div className="flex flex-col space-y-2">
-               <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter italic">142k+</span>
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Applications Filed</span>
+              <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter italic">142k+</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Applications Filed</span>
             </div>
             <div className="w-px h-12 bg-slate-200 dark:bg-white/10" />
             <div className="flex flex-col space-y-2">
-               <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter italic">48h</span>
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Avg Time Saved</span>
+              <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter italic">48h</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Avg Time Saved</span>
             </div>
           </div>
         </div>
@@ -95,16 +95,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
       {/* Floating Badges */}
       <div className="relative z-10 w-full max-w-7xl px-8 pb-16 pt-24 lg:pt-0 flex flex-wrap items-center justify-center lg:justify-start gap-12 opacity-60 grayscale hover:grayscale-0 transition-all duration-1000">
         <div className="flex items-center space-x-3 font-black text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em] group">
-           <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900 group-hover:text-indigo-500 transition-colors"><ShieldCheck size={18} /></div>
-           <span>Military Grade Vaulting</span>
+          <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900 group-hover:text-indigo-500 transition-colors"><ShieldCheck size={18} /></div>
+          <span>Secure Data Storage</span>
         </div>
         <div className="flex items-center space-x-3 font-black text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em] group">
-           <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900 group-hover:text-indigo-500 transition-colors"><Cpu size={18} /></div>
-           <span>Neural Mapping Engine</span>
+          <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900 group-hover:text-indigo-500 transition-colors"><Cpu size={18} /></div>
+          <span>Smart Field Mapping</span>
         </div>
         <div className="flex items-center space-x-3 font-black text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em] group">
-           <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900 group-hover:text-indigo-500 transition-colors"><GlobeIcon size={18} /></div>
-           <span>Global Node Retrieval</span>
+          <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900 group-hover:text-indigo-500 transition-colors"><GlobeIcon size={18} /></div>
+          <span>Global Opportunity Finder</span>
         </div>
       </div>
     </div>

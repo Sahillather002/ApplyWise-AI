@@ -48,7 +48,25 @@ export interface CompanyResearch {
   talkingPoints: string[];
 }
 
-export type SidebarTab = 'apply' | 'research' | 'prep' | 'vault' | 'studio' | 'chat';
+export interface JobOpportunity {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  matchScore: number;
+  description: string;
+  url: string;
+}
+
+export interface AuditResult {
+  score: number;
+  strengths: string[];
+  gaps: string[];
+  recommendations: string[];
+  keywords: string[];
+}
+
+export type SidebarTab = 'apply' | 'research' | 'prep' | 'vault' | 'studio' | 'chat' | 'optimize' | 'letter';
 
 export interface ChatMessage {
   role: 'user' | 'model';
@@ -68,6 +86,20 @@ export interface InterviewSession {
   isActive: boolean;
   transcription: string[];
   isListening: boolean;
+  questions?: string[];
+}
+
+export type ApplicationStage = 'discovery' | 'applied' | 'interview' | 'offer' | 'rejected';
+
+export interface Application {
+  id: string;
+  company: string;
+  role: string;
+  stage: ApplicationStage;
+  matchScore: number;
+  date: string;
+  notes?: string;
+  url?: string;
 }
 
 export interface ApplicationState {
@@ -85,4 +117,5 @@ export interface ApplicationState {
     interimText: string;
     isListening: boolean;
   };
+  history: Application[];
 }

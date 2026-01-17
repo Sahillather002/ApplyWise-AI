@@ -1,398 +1,237 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ApplicationState, FormFieldMetadata, AISuggestion, SidebarTab, UserProfile } from './types';
+import React, { useState, lazy, Suspense, useRef } from 'react';
+import { Home, Box, Globe, User, Mic, Loader2, LayoutDashboard, Sparkles, FileText, Send, Command } from 'lucide-react';
+import { ApplicationState, UserProfile } from './types';
 import { MOCK_USER_PROFILE } from './constants';
+import { GoogleGenAI, Modality } from "@google/genai";
 import { geminiService } from './services/geminiService';
-import { ThemeProvider } from './contexts/ThemeContext';
+
+// Lazy load pages
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const UserProfileManagement = lazy(() => import('./pages/user-profile-management/index'));
+import ApplicationHistory from './pages/application-history/index';
+const FormFieldDetection = lazy(() => import('./pages/form-field-detection/index'));
+const AISuggestionCardsPage = lazy(() => import('./pages/ai-suggestion-cards/index'));
+const CompanyResearch = lazy(() => import('./pages/company-research/index'));
+const CareerCoachPage = lazy(() => import('./pages/career-coach/index'));
+const DashboardPage = lazy(() => import('./pages/dashboard/index'));
+const ResumeOptimizer = lazy(() => import('./pages/resume-optimizer/index'));
+const CoverLetterArchitect = lazy(() => import('./pages/cover-letter/index'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+
+// Components
+import Sidebar from './components/Sidebar';
 import BrowserSimulation from './components/BrowserSimulation';
 import MockForm from './components/MockForm';
-import Sidebar from './components/Sidebar';
-import SuggestionCard from './components/SuggestionCard';
 import ThemeToggle from './components/ThemeToggle';
-import { Zap, User, History, Home, Code, LayoutGrid, Box } from 'lucide-react';
-import { GoogleGenAI, Modality } from "@google/genai";
-
-import UserProfileManagement from './pages/user-profile-management/index';
-import ApplicationHistory from './pages/application-history/index';
-import FormFieldDetection from './pages/form-field-detection/index';
-import ExtensionPopup from './pages/extension-popup-dashboard/index';
-import AISuggestionCardsPage from './pages/ai-suggestion-cards/index';
-import LandingPage from './pages/LandingPage';
-import NotFound from './pages/NotFound';
-
-const STORAGE_KEY = 'applywise_always_use_map';
-const DICTATION_KEY = 'applywise_dictation_session';
-
-type AppRoute = 'landing' | 'main' | 'profile' | 'history' | 'detection' | 'popup' | 'interaction-studio' | '404';
-
-// Helper for Base64 encoding
-function encode(bytes: Uint8Array) {
-  let binary = '';
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
+import CommandPalette from './components/CommandPalette';
 
 const App: React.FC = () => {
-  const [route, setRoute] = useState<AppRoute>('landing');
+  const [route, setRoute] = useState<string>('landing');
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>(MOCK_USER_PROFILE);
-  
-  const [state, setState] = useState<ApplicationState>(() => {
-    const savedDictation = localStorage.getItem(DICTATION_KEY);
-    let dictation = { id: null, interimText: "", isListening: false };
-    
-    if (savedDictation) {
-      try {
-        const parsed = JSON.parse(savedDictation);
-        dictation = { ...parsed, isListening: false };
-      } catch (e) {
-        console.error("Failed to restore dictation state", e);
-      }
-    }
-
-    return {
-      fields: [],
-      suggestions: {},
-      filledStatus: {},
-      isAnalyzing: false,
-      activeTab: 'apply',
-      companyInfo: null,
-      isResearching: false,
-      videoState: { isGenerating: false, progress: 0, statusMessage: "", videoUrl: null, error: null },
-      interview: { isActive: false, transcription: [], isListening: false },
-      dictation: dictation
-    };
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [state, setState] = useState<ApplicationState>({
+    fields: [
+      { id: 'full-name', type: 'text', label: 'Full Name', tagName: 'input', rect: null },
+      { id: 'email-address', type: 'email', label: 'Email Address', tagName: 'input', rect: null },
+      { id: 'phone-number', type: 'tel', label: 'Phone Number', tagName: 'input', rect: null },
+      { id: 'portfolio-url', type: 'url', label: 'Portfolio Website', tagName: 'input', rect: null },
+      { id: 'home-address', type: 'text', label: 'Residential Address', tagName: 'input', rect: null },
+      { id: 'current-role', type: 'text', label: 'Current Role & Company', tagName: 'input', rect: null },
+      { id: 'years-react', type: 'select', label: 'Years of experience with React', tagName: 'select', rect: null },
+      { id: 'why-join', type: 'textarea', label: 'Why are you interested in joining InnovateTech?', tagName: 'textarea', rect: null },
+    ],
+    suggestions: {},
+    filledStatus: {},
+    isAnalyzing: false,
+    activeTab: 'apply',
+    companyInfo: null,
+    isResearching: false,
+    videoState: { isGenerating: false, progress: 0, statusMessage: '', videoUrl: null, error: null },
+    interview: { isActive: false, transcription: [], isListening: false },
+    dictation: { id: null, interimText: '', isListening: false },
+    history: [
+      { id: '1', company: 'Google', role: 'Senior UX Engineer', stage: 'interview', matchScore: 94, date: 'Mar 15, 2024' },
+      { id: '2', company: 'Stripe', role: 'Frontend Architect', stage: 'applied', matchScore: 88, date: 'Mar 10, 2024' },
+      { id: '3', company: 'Vercel', role: 'Developer Relations', stage: 'rejected', matchScore: 91, date: 'Feb 28, 2024' },
+      { id: '4', company: 'Linear', role: 'Staff Engineer', stage: 'discovery', matchScore: 92, date: 'Mar 18, 2024' },
+    ]
   });
 
-  const [focusedFieldId, setFocusedFieldId] = useState<string | null>(null);
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
-  const [isRewriting, setIsRewriting] = useState(false);
-  const observerRef = useRef<MutationObserver | null>(null);
-
-  const dictationSessionRef = useRef<any>(null);
-  const dictationAudioInRef = useRef<AudioContext | null>(null);
-
-  useEffect(() => {
-    if (state.dictation && state.dictation.id) {
-      localStorage.setItem(DICTATION_KEY, JSON.stringify(state.dictation));
-    } else {
-      localStorage.removeItem(DICTATION_KEY);
-    }
-  }, [state.dictation]);
-
-  useEffect(() => {
-    if (route !== 'main') {
-      setFieldValues({});
-      setFocusedFieldId(null);
-      setState(prev => ({
-        ...prev,
-        suggestions: {},
-        filledStatus: {},
-        isAnalyzing: false,
-      }));
-    }
-  }, [route]);
-
-  const detectFieldsRecursive = useCallback((root: ParentNode | ShadowRoot): FormFieldMetadata[] => {
-    let fields: FormFieldMetadata[] = [];
-    const selectors = 'input:not([type="hidden"]), select, textarea, [role="textbox"], [contenteditable="true"]';
-    const elements = root.querySelectorAll(selectors);
-    
-    elements.forEach((el) => {
-      const input = el as HTMLElement;
-      const style = window.getComputedStyle(input);
-      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return;
-
-      let labelText = '';
-      if (input.id) {
-        const label = document.querySelector(`label[for="${input.id}"]`);
-        labelText = label?.textContent?.trim() || '';
-      }
-      
-      if (!labelText) {
-        labelText = input.getAttribute('aria-label') || 
-                  input.getAttribute('placeholder') || 
-                  input.getAttribute('name') || 
-                  input.title || 
-                  'Unknown Field';
-      }
-
-      fields.push({
-        id: input.id || `field-${Math.random().toString(36).substr(2, 9)}`,
-        type: (input as HTMLInputElement).type || input.getAttribute('role') || 'text',
-        label: labelText,
-        placeholder: (input as HTMLInputElement).placeholder,
-        name: (input as HTMLInputElement).name,
-        tagName: input.tagName.toLowerCase(),
-        rect: input.getBoundingClientRect(),
-      });
-    });
-
-    const allElements = root.querySelectorAll('*');
-    allElements.forEach(el => {
-      if (el.shadowRoot) {
-        fields = [...fields, ...detectFieldsRecursive(el.shadowRoot)];
-      }
-    });
-
-    return fields;
-  }, []);
-
-  const detectFields = useCallback(() => {
-    const formContainer = document.getElementById('application-form');
-    if (!formContainer) return;
-
-    const newFields = detectFieldsRecursive(formContainer);
-
-    setState(prev => {
-      const currentIds = prev.fields.map(f => f.id).join(',');
-      const nextIds = newFields.map(f => f.id).join(',');
-      if (currentIds === nextIds) return prev;
-      return { ...prev, fields: newFields };
-    });
-
-    // Check Vault for 'Always Use' preferences
-    const savedPreferences = localStorage.getItem(STORAGE_KEY);
-    if (savedPreferences) {
-      try {
-        const preferences = JSON.parse(savedPreferences);
-        const autoFilledValues: Record<string, string> = {};
-        const autoFilledStatus: Record<string, boolean> = {};
-        let updated = false;
-
-        newFields.forEach(field => {
-          // Priority for auto-fill: ID > Label > Name
-          const prefValue = preferences[field.id] || preferences[field.label] || preferences[field.name || ''];
-          
-          if (prefValue && !fieldValues[field.id]) {
-            autoFilledValues[field.id] = prefValue;
-            autoFilledStatus[field.id] = true;
-            updated = true;
-          }
-        });
-
-        if (updated) {
-          setFieldValues(prev => ({ ...prev, ...autoFilledValues }));
-          setState(s => ({ 
-            ...s, 
-            filledStatus: { ...s.filledStatus, ...autoFilledStatus } 
-          }));
-        }
-      } catch (e) {
-        console.error("Vault retrieval error:", e);
-      }
-    }
-  }, [fieldValues, detectFieldsRecursive]);
-
-  useEffect(() => {
-    if (route !== 'main') return;
-    
-    detectFields();
-    const simulationContainer = document.querySelector('.browser-simulation-content');
-    if (simulationContainer) {
-      observerRef.current = new MutationObserver((mutations) => {
-        const hasNodeChanges = mutations.some(m => m.addedNodes.length > 0 || m.removedNodes.length > 0);
-        if (hasNodeChanges) detectFields();
-      });
-      observerRef.current.observe(simulationContainer, { childList: true, subtree: true });
-    }
-
-    window.addEventListener('resize', detectFields);
-    const handleFocus = (e: FocusEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.id && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.getAttribute('role') === 'textbox')) {
-        setFocusedFieldId(target.id);
-      }
-    };
-    window.addEventListener('focusin', handleFocus);
-    
-    return () => {
-      observerRef.current?.disconnect();
-      window.removeEventListener('resize', detectFields);
-      window.removeEventListener('focusin', handleFocus);
-    };
-  }, [detectFields, route]);
-
-  useEffect(() => {
-    if (route === 'main' && state.fields.length > 0 && !state.isAnalyzing) {
-      (async () => {
-        setState(prev => ({ ...prev, isAnalyzing: true }));
-        const suggestions = await geminiService.analyzeForm(state.fields, userProfile);
-        setState(prev => ({ ...prev, suggestions, isAnalyzing: false }));
-      })();
-    }
-  }, [state.fields.length, userProfile, route]);
-
-  const handleManualChange = (id: string, value: string) => {
-    setFieldValues(v => ({ ...v, [id]: value }));
-    setState(s => ({ ...s, filledStatus: { ...s.filledStatus, [id]: !!value } }));
-  };
+  // Neural Dictation Session Refs
+  const dictSessionRef = useRef<any>(null);
+  const audioInRef = useRef<AudioContext | null>(null);
 
   const startDictation = async (fieldId: string) => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      setState(s => ({ ...s, dictation: { id: fieldId, interimText: "", isListening: true } }));
-      dictationAudioInRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      setState(prev => ({ ...prev, dictation: { id: fieldId, interimText: 'Opening voice channel...', isListening: true } }));
+      audioInRef.current = new AudioContext({ sampleRate: 16000 });
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const source = audioInRef.current.createMediaStreamSource(stream);
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        model: 'gemini-2.0-flash',
         callbacks: {
           onopen: () => {
-            const source = dictationAudioInRef.current!.createMediaStreamSource(stream);
-            const scriptProcessor = dictationAudioInRef.current!.createScriptProcessor(4096, 1, 1);
-            scriptProcessor.onaudioprocess = (e) => {
-              const inputData = e.inputBuffer.getChannelData(0);
-              const int16 = new Int16Array(inputData.length);
-              for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i] * 32768;
-              sessionPromise.then(session => session.sendRealtimeInput({ media: { data: encode(new Uint8Array(int16.buffer)), mimeType: 'audio/pcm;rate=16000' } }));
+            const processor = audioInRef.current!.createScriptProcessor(4096, 1, 1);
+            processor.onaudioprocess = (e) => {
+              const data = e.inputBuffer.getChannelData(0);
+              const int16 = new Int16Array(data.length);
+              for (let i = 0; i < data.length; i++) int16[i] = data[i] * 32768;
+              sessionPromise.then(s => s.sendRealtimeInput({ media: { data: btoa(String.fromCharCode(...new Uint8Array(int16.buffer))), mimeType: 'audio/pcm;rate=16000' } }));
             };
-            source.connect(scriptProcessor);
-            scriptProcessor.connect(dictationAudioInRef.current!.destination);
+            source.connect(processor);
+            processor.connect(audioInRef.current!.destination);
           },
-          onmessage: async (message) => {
-            if (message.serverContent?.inputTranscription) {
-              const text = message.serverContent.inputTranscription.text;
-              setState(s => ({ ...s, dictation: s.dictation ? { ...s.dictation, interimText: s.dictation.interimText + text } : s.dictation }));
+          onmessage: (msg) => {
+            if (msg.serverContent?.inputTranscription) {
+              const text = msg.serverContent.inputTranscription.text;
+              setFieldValues(prev => ({ ...prev, [fieldId]: (prev[fieldId] || '') + text }));
+              setState(prev => ({ ...prev, dictation: { ...prev.dictation!, interimText: text } }));
             }
-          },
-          onclose: () => setState(s => ({ ...s, dictation: s.dictation ? { ...s.dictation, isListening: false } : s.dictation })),
-          onerror: (e) => setState(s => ({ ...s, dictation: s.dictation ? { ...s.dictation, isListening: false } : s.dictation }))
+          }
         },
-        config: {
-          responseModalities: [Modality.AUDIO],
-          inputAudioTranscription: {},
-          systemInstruction: "You are a transcription assistant. Transcribe the user's speech accurately."
-        }
+        config: { responseModalities: [Modality.AUDIO], inputAudioTranscription: {} }
       });
-      dictationSessionRef.current = await sessionPromise;
-    } catch (err) {
-      setState(s => ({ ...s, dictation: s.dictation ? { ...s.dictation, isListening: false } : s.dictation }));
+      dictSessionRef.current = await sessionPromise;
+    } catch (e) {
+      stopDictation();
     }
   };
 
   const stopDictation = () => {
-    if (state.dictation?.id && state.dictation?.interimText) {
-      const currentVal = fieldValues[state.dictation.id] || "";
-      handleManualChange(state.dictation.id, currentVal + (currentVal ? " " : "") + state.dictation.interimText);
-    }
-    dictationSessionRef.current?.close();
-    dictationAudioInRef.current?.close();
-    setState(s => ({ ...s, dictation: { id: null, interimText: "", isListening: false } }));
+    dictSessionRef.current?.close();
+    audioInRef.current?.close();
+    setState(prev => ({ ...prev, dictation: { id: null, interimText: '', isListening: false } }));
   };
 
-  const handleAcceptSuggestion = (id: string, value?: string) => {
-    const s = state.suggestions[id];
-    const finalValue = value !== undefined ? value : (s ? s.value : '');
-    if (finalValue) {
-      handleManualChange(id, finalValue);
-      setFocusedFieldId(null);
-    }
-  };
-
-  const handleAlwaysUse = async (id: string, value?: string) => {
-    const s = state.suggestions[id];
-    const field = state.fields.find(f => f.id === id);
-    const finalValue = value !== undefined ? value : (s ? s.value : '');
-    
-    if (finalValue && field) {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      const preferences = saved ? JSON.parse(saved) : {};
-      
-      // Store under stable keys for cross-form recognition
-      if (field.label) preferences[field.label] = finalValue;
-      if (field.name) preferences[field.name] = finalValue;
-      preferences[id] = finalValue;
-      
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
-      
-      // Fill immediately
-      handleManualChange(id, finalValue);
-      
-      // Feedback delay before card dismissal
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setFocusedFieldId(null);
-    }
-  };
-
-  const handleRewriteEssay = async (id: string, text: string) => {
-    setIsRewriting(true);
+  const handleAutoFillAll = async () => {
+    setState(prev => ({ ...prev, isAnalyzing: true }));
     try {
-      const refined = await geminiService.rewriteEssay(text, userProfile, "Senior Frontend Engineer");
-      handleManualChange(id, refined);
-    } catch (e) { console.error(e); } finally { setIsRewriting(false); }
+      const result = await geminiService.analyzeForm(state.fields, userProfile);
+      Object.entries(result).forEach(([fieldId, suggestion], index) => {
+        setTimeout(() => {
+          setFieldValues(prev => ({ ...prev, [fieldId]: suggestion.value }));
+          setState(prev => ({ ...prev, filledStatus: { ...prev.filledStatus, [fieldId]: true } }));
+        }, index * 400); // Cinematic ghost-typing effect
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setState(prev => ({ ...prev, isAnalyzing: false }));
+    }
+  };
+
+  const handleFieldChange = (id: string, value: string) => {
+    setFieldValues(prev => ({ ...prev, [id]: value }));
+    setState(prev => ({ ...prev, filledStatus: { ...prev.filledStatus, [id]: !!value.trim() } }));
   };
 
   const renderContent = () => {
     switch (route) {
-      case 'landing': return <LandingPage onStart={() => setRoute('main')} />;
+      case 'landing': return <LandingPage onStart={() => setRoute('dashboard')} />;
+      case 'dashboard': return <DashboardPage profile={userProfile} />;
       case 'profile': return <UserProfileManagement profile={userProfile} onUpdate={setUserProfile} />;
-      case 'history': return <ApplicationHistory />;
-      case 'detection': return <FormFieldDetection fields={state.fields} />;
-      case 'interaction-studio': return <AISuggestionCardsPage />;
-      case 'popup': return <ExtensionPopup />;
+      case 'history': return (
+        <ApplicationHistory
+          applications={state.history}
+          onUpdateStage={(id, stage) => setState(prev => ({
+            ...prev,
+            history: prev.history.map(app => app.id === id ? { ...app, stage } : app)
+          }))}
+        />
+      );
+      case 'coach': return <CareerCoachPage profile={userProfile} />;
+      case 'research': return <CompanyResearch />;
+      case 'optimize': return <ResumeOptimizer profile={userProfile} />;
+      case 'letter': return <CoverLetterArchitect profile={userProfile} />;
       case 'main': return (
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex h-screen bg-white dark:bg-slate-900 transition-colors">
           <BrowserSimulation>
-            <div id="application-form">
-              <MockForm 
-                onFieldChange={handleManualChange} 
-                onRewrite={handleRewriteEssay} 
-                onStartDictation={startDictation}
-                onStopDictation={stopDictation}
-                fieldValues={fieldValues} 
-                isRewriting={isRewriting} 
-                dictatingId={state.dictation?.id}
-                interimText={state.dictation?.interimText}
-              />
-            </div>
-            {state.fields.map(field => {
-              if (!field.rect || focusedFieldId !== field.id || state.filledStatus[field.id]) return null;
-              const suggestion = state.suggestions[field.id];
-              if (!suggestion) return null;
-              return (
-                <SuggestionCard 
-                  key={`card-${field.id}`}
-                  suggestion={suggestion}
-                  rect={field.rect}
-                  onAccept={(val) => handleAcceptSuggestion(field.id, val)}
-                  onSkip={() => setFocusedFieldId(null)}
-                  onAlwaysUse={(val) => handleAlwaysUse(field.id, val)}
-                />
-              );
-            })}
+            <MockForm
+              fieldValues={fieldValues}
+              onFieldChange={handleFieldChange}
+              onRewrite={async () => { }}
+              onStartDictation={startDictation}
+              onStopDictation={stopDictation}
+              dictatingId={state.dictation?.id}
+              interimText={state.dictation?.interimText}
+            />
           </BrowserSimulation>
-          <Sidebar 
-            state={state} 
+          <Sidebar
+            state={state}
             userProfile={userProfile}
-            onAutoFillAll={() => state.fields.forEach(f => handleAcceptSuggestion(f.id))}
-            onTabChange={(t) => setState(s => ({ ...s, activeTab: t }))}
-            onVideoStateUpdate={(v) => setState(s => ({ ...s, videoState: v }))}
-            onInterviewUpdate={(i) => setState(s => ({ ...s, interview: i }))}
+            onAutoFillAll={handleAutoFillAll}
+            onTabChange={(tab) => {
+              if (tab === 'prep') setRoute('coach');
+              else setState(prev => ({ ...prev, activeTab: tab }));
+            }}
+            onVideoStateUpdate={(videoState) => setState(prev => ({ ...prev, videoState }))}
+            onInterviewUpdate={(interview) => setState(prev => ({ ...prev, interview }))}
           />
         </div>
       );
-      default: return <NotFound onGoHome={() => setRoute('main')} />;
+      default: return <NotFound onGoHome={() => setRoute('dashboard')} />;
     }
   };
 
   return (
-    <ThemeProvider>
-      <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white overflow-hidden transition-colors duration-300 font-sans">
-        <div className="fixed top-6 left-6 z-[100] flex items-center space-x-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-2 rounded-2xl border border-slate-200 dark:border-white/10 shadow-2xl">
-          <button onClick={() => setRoute('landing')} className={`p-2 rounded-xl transition-all ${route === 'landing' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Home size={18}/></button>
-          <button onClick={() => setRoute('main')} className={`p-2 rounded-xl transition-all ${route === 'main' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Box size={18}/></button>
-          <button onClick={() => setRoute('profile')} className={`p-2 rounded-xl transition-all ${route === 'profile' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><User size={18}/></button>
-          <button onClick={() => setRoute('history')} className={`p-2 rounded-xl transition-all ${route === 'history' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><History size={18}/></button>
-          <button onClick={() => setRoute('detection')} className={`p-2 rounded-xl transition-all ${route === 'detection' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Code size={18}/></button>
-          <button onClick={() => setRoute('popup')} className={`p-2 rounded-xl transition-all ${route === 'popup' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><LayoutGrid size={18}/></button>
-          <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1" />
-          <ThemeToggle />
-        </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500">
+      <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-indigo-500" /></div>}>
         {renderContent()}
+      </Suspense>
+
+      <div className="fixed top-6 left-6 z-[100] flex items-center space-x-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-2 rounded-2xl border border-slate-200 dark:border-white/10 shadow-2xl">
+        <button onClick={() => setRoute('landing')} className={`p-2 rounded-xl transition-all ${route === 'landing' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Home size={18} /></button>
+        <button onClick={() => setRoute('dashboard')} className={`p-2 rounded-xl transition-all ${route === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><LayoutDashboard size={18} /></button>
+        <button onClick={() => setRoute('main')} className={`p-2 rounded-xl transition-all ${route === 'main' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Box size={18} /></button>
+        <button onClick={() => setRoute('research')} className={`p-2 rounded-xl transition-all ${route === 'research' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Globe size={18} /></button>
+        <button onClick={() => setRoute('optimize')} className={`p-2 rounded-xl transition-all ${route === 'optimize' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><FileText size={18} /></button>
+        <button onClick={() => setRoute('letter')} className={`p-2 rounded-xl transition-all ${route === 'letter' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Send size={18} /></button>
+        <button onClick={() => setRoute('profile')} className={`p-2 rounded-xl transition-all ${route === 'profile' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><User size={18} /></button>
+        <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
+        <ThemeToggle />
       </div>
-    </ThemeProvider>
+
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onSelect={setRoute}
+      />
+
+      <button
+        onClick={() => setIsCommandPaletteOpen(true)}
+        className="fixed bottom-6 right-6 z-[400] w-12 h-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl flex items-center justify-center text-slate-500 hover:text-indigo-600 transition-all shadow-2xl hover:scale-110 active:scale-95"
+      >
+        <Command size={20} />
+      </button>
+      {state.dictation?.isListening && (
+        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-slate-900 text-white px-8 py-4 rounded-[2rem] shadow-2xl flex items-center space-x-4 border border-indigo-500/30">
+            <div className="relative">
+              <Mic size={20} className="text-indigo-400" />
+              <div className="absolute inset-0 bg-indigo-500/20 rounded-full animate-ping" />
+            </div>
+            <p className="text-xs font-black uppercase tracking-widest text-indigo-100">Voice Dictation Active</p>
+            <button onClick={stopDictation} className="text-[10px] font-black text-red-400 hover:text-red-300 uppercase tracking-tighter">STOP</button>
+          </div>
+        </div>
+      )}
+
+      {state.isAnalyzing && (
+        <div className="fixed inset-0 z-[300] bg-white/40 dark:bg-slate-950/40 backdrop-blur-sm flex items-center justify-center cursor-wait animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-white/10 flex flex-col items-center space-y-4">
+            <div className="relative">
+              <Sparkles size={48} className="text-indigo-600 animate-pulse" />
+              <Loader2 size={64} className="absolute -top-2 -left-2 text-indigo-500/20 animate-spin" />
+            </div>
+            <p className="text-lg font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">Form Analysis in Progress...</p>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Applying career heuristics to DOM nodes</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

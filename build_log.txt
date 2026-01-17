@@ -1,0 +1,53 @@
+X [ERROR] "@vitejs/plugin-react" resolved to an ESM file. ESM file cannot be loaded by `require`. See https://vite.dev/guide/troubleshooting.html#this-package-is-esm-only for more details. [plugin externalize-deps]
+
+    node_modules/esbuild/lib/main.js:1225:27:
+      1225 Γöé         let result = await callback({
+           Γò╡                            ^
+
+    at file:///C:/Users/260002698/Downloads/applywise-ai/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:66928:23
+    at requestCallbacks.on-resolve (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:1225:28)
+    at handleRequest (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:647:17)
+    at handleIncomingPacket (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:672:7)
+    at Socket.readFromStdout (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:600:7)
+    at Socket.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:191:23)
+
+  This error came from the "onResolve" callback registered here:
+
+    node_modules/esbuild/lib/main.js:1150:20:
+      1150 Γöé       let promise = setup({
+           Γò╡                     ^
+
+    at setup (file:///C:/Users/260002698/Downloads/applywise-ai/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:66890:18)
+    at handlePlugins (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:1150:21)
+    at buildOrContextImpl (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:873:5)
+    at Object.buildOrContext (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:699:5)
+    at C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:2023:15
+    at new Promise (<anonymous>)
+    at Object.build (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:2022:25)
+    at build (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:1873:51)
+    at bundleConfigFile (file:///C:/Users/260002698/Downloads/applywise-ai/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:66845:24)
+
+  The plugin "externalize-deps" was triggered by this import
+
+    vite.config.ts:3:18:
+      3 Γöé import react from '@vitejs/plugin-react';
+        Γò╡                   ~~~~~~~~~~~~~~~~~~~~~~
+
+failed to load config from C:\Users\260002698\Downloads\applywise-ai\vite.config.ts
+error during build:
+Error: Build failed with 1 error:
+node_modules/esbuild/lib/main.js:1225:27: ERROR: [plugin: externalize-deps] "@vitejs/plugin-react" resolved to an ESM file. ESM file cannot be loaded by `require`. See https://vite.dev/guide/troubleshooting.html#this-package-is-esm-only for more details.
+    at failureErrorWithLog (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:1472:15)
+    at C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:945:25
+    at runOnEndCallbacks (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:1315:45)
+    at buildResponseToResult (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:943:7)
+    at C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:970:16
+    at responseCallbacks.<computed> (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:622:9)
+    at handleIncomingPacket (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:677:12)
+    at Socket.readFromStdout (C:\Users\260002698\Downloads\applywise-ai\node_modules\esbuild\lib\main.js:600:7)
+    at Socket.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)

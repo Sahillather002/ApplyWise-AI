@@ -1,11 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  CheckCircle, Circle, Zap, User, Database, Video, Upload,
-  Play, Download, Loader2, MessageSquare, Mic, StopCircle, Volume2, Send, ShieldCheck, Trash2, Key, ExternalLink, Globe, FileText
+import { 
+  CheckCircle, Circle, Zap, User, Database, Video, Upload, 
+  Play, Download, Loader2, MessageSquare, Mic, StopCircle, Volume2, Send, ShieldCheck, Trash2, Key, ExternalLink, Globe
 } from 'lucide-react';
-import { ApplicationState, SidebarTab, InterviewSession, ChatMessage, UserProfile } from '../types';
-import { geminiService } from '../services/geminiService';
+import { ApplicationState, SidebarTab, InterviewSession, ChatMessage, UserProfile } from './types';
+import { geminiService } from './services/geminiService';
 import { GoogleGenAI, Modality } from "@google/genai";
 
 interface SidebarProps {
@@ -62,14 +62,13 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
   const [videoPrompt, setVideoPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const [vaultItems, setVaultItems] = useState<Record<string, string>>({});
-  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
 
   const sessionRef = useRef<any>(null);
   const audioContextInRef = useRef<AudioContext | null>(null);
@@ -99,14 +98,15 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
   }, [state.activeTab]);
 
   const TabButton = ({ id, icon: Icon, label }: { id: SidebarTab, icon: any, label: string }) => (
-    <button
+    <button 
       onClick={() => onTabChange(id)}
       role="tab"
       aria-selected={state.activeTab === id}
       aria-controls={`${id}-panel`}
       id={`${id}-tab`}
-      className={`flex flex-col items-center justify-center flex-1 py-3 transition-all outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-inset ${state.activeTab === id ? 'text-indigo-400 bg-white/5 border-b-2 border-indigo-400' : 'text-slate-500 hover:text-slate-300'
-        }`}
+      className={`flex flex-col items-center justify-center flex-1 py-3 transition-all outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-inset ${
+        state.activeTab === id ? 'text-indigo-400 bg-white/5 border-b-2 border-indigo-400' : 'text-slate-500 hover:text-slate-300'
+      }`}
     >
       <Icon size={18} aria-hidden="true" />
       <span className="text-[9px] font-bold mt-1 uppercase tracking-tighter">{label}</span>
@@ -120,11 +120,11 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
 
       audioContextInRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       audioContextOutRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-
+      
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
             onInterviewUpdate({ ...state.interview, isActive: true, transcription: ["Coach connected. Listening..."] });
@@ -169,11 +169,12 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
           onerror: (e) => console.error("Live API Error:", e)
         },
         config: {
+          // The supported audio modality is 'AUDIO'.
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          systemInstruction: `You are ApplyWise, an AI Career Coach. 
+          systemInstruction: `You are Zephyr, an AI Mock Interviewer. 
           User Profile: ${JSON.stringify(userProfile)}.
           Goal: Conduct a realistic 2-way audio interview for a Senior Frontend Engineer role. conciseness is key.`
         }
@@ -191,21 +192,6 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
     audioContextOutRef.current?.close();
     sourcesRef.current.forEach(s => s.stop());
     onInterviewUpdate({ ...state.interview, isActive: false });
-  };
-
-  const handleGenerateQuestions = async () => {
-    setIsGeneratingQuestions(true);
-    try {
-      const prompt = `Generate 5 challenging interview questions for a Senior Frontend Engineer based on this profile: ${JSON.stringify(userProfile)}. 
-      Focus on React, TypeScript, and System Design. Output as a JSON array of strings.`;
-      const response = await geminiService.chat(prompt, [], userProfile);
-      const jsonStr = response.replace(/```json|```/g, '').trim();
-      onInterviewUpdate({ ...state.interview, questions: JSON.parse(jsonStr) });
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsGeneratingQuestions(false);
-    }
   };
 
   const handleSendMessage = async () => {
@@ -229,7 +215,7 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
     try {
       const hasKey = await (window as any).aistudio.hasSelectedApiKey();
       if (!hasKey) await (window as any).aistudio.openSelectKey();
-
+      
       onVideoStateUpdate({ ...state.videoState, isGenerating: true, statusMessage: "Initializing Engine...", error: null });
       const base64 = selectedImage.split(',')[1];
       const videoUrl = await geminiService.generateVideo(base64, videoPrompt, aspectRatio, (msg) => onVideoStateUpdate({ ...state.videoState, isGenerating: true, statusMessage: msg }));
@@ -273,8 +259,6 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
         <TabButton id="apply" icon={CheckCircle} label="Apply" />
         <TabButton id="research" icon={Globe} label="Research" />
         <TabButton id="chat" icon={MessageSquare} label="Chat" />
-        <TabButton id="optimize" icon={FileText} label="Optimize" />
-        <TabButton id="letter" icon={Send} label="Letter" />
         <TabButton id="prep" icon={Mic} label="Coach" />
         <TabButton id="studio" icon={Video} label="Studio" />
         <TabButton id="vault" icon={Database} label="Vault" />
@@ -289,12 +273,12 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
                 <span className="text-white">{filledFieldsCount}/{totalFields}</span>
               </div>
               <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-indigo-500 transition-all duration-700 shadow-[0_0_12px_rgba(99,102,241,0.6)]"
-                  role="progressbar"
-                  aria-valuenow={progress}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
+                <div 
+                  className="h-full bg-indigo-500 transition-all duration-700 shadow-[0_0_12px_rgba(99,102,241,0.6)]" 
+                  role="progressbar" 
+                  aria-valuenow={progress} 
+                  aria-valuemin={0} 
+                  aria-valuemax={100} 
                   style={{ width: `${progress}%` }}
                 ></div>
               </div>
@@ -319,14 +303,14 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
 
         {state.activeTab === 'research' && (
           <div id="research-panel" role="tabpanel" aria-labelledby="research-tab" className="p-6 space-y-6 animate-fade-in">
-            <h3 className="text-lg font-bold text-white">Quick Research</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Use the Deep Research page for full analysis. This sidebar tab will soon support quick context fetching and company news alerts.
-            </p>
-            <div className="p-4 bg-white/5 border border-white/5 rounded-xl">
-              <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Alpha Feature</p>
-              <p className="text-[11px] text-slate-300 italic">"InnovateTech recently raised Series C funding led by Indigo Ventures."</p>
-            </div>
+             <h3 className="text-lg font-bold text-white">Quick Research</h3>
+             <p className="text-xs text-slate-400 leading-relaxed">
+               Use the Deep Research page for full analysis. This sidebar tab will soon support quick context fetching and company news alerts.
+             </p>
+             <div className="p-4 bg-white/5 border border-white/5 rounded-xl">
+               <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Alpha Feature</p>
+               <p className="text-[11px] text-slate-300 italic">"InnovateTech recently raised Series C funding led by Indigo Ventures."</p>
+             </div>
           </div>
         )}
 
@@ -341,8 +325,9 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
               )}
               {chatMessages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-[11px] leading-relaxed ${msg.role === 'user' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/5 text-slate-300 border border-white/5'
-                    }`}>
+                  <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-[11px] leading-relaxed ${
+                    msg.role === 'user' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/5 text-slate-300 border border-white/5'
+                  }`}>
                     {msg.text}
                   </div>
                 </div>
@@ -352,7 +337,7 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
             </div>
             <div className="p-4 bg-slate-950/50 border-t border-white/5">
               <div className="relative">
-                <input
+                <input 
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
@@ -372,32 +357,7 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
           <div id="prep-panel" role="tabpanel" aria-labelledby="prep-tab" className="p-6 space-y-6 animate-fade-in">
             <h3 className="text-lg font-bold text-white">Interview Coach</h3>
             {!state.interview.isActive ? (
-              <div className="space-y-6">
-                <button onClick={startInterview} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-sm shadow-xl shadow-indigo-500/10 transition-all">Start Audio Session</button>
-
-                <div className="pt-6 border-t border-white/5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Mock Questions</h4>
-                    <button
-                      onClick={handleGenerateQuestions}
-                      disabled={isGeneratingQuestions}
-                      className="text-[9px] font-black text-indigo-400 uppercase tracking-widest hover:text-indigo-300 disabled:opacity-50"
-                    >
-                      {isGeneratingQuestions ? 'Generating...' : 'Refresh'}
-                    </button>
-                  </div>
-
-                  {state.interview.questions?.map((q, i) => (
-                    <div key={i} className="p-3 bg-white/5 border border-white/5 rounded-xl text-[11px] leading-relaxed text-slate-300">
-                      {q}
-                    </div>
-                  ))}
-
-                  {!state.interview.questions && !isGeneratingQuestions && (
-                    <p className="text-[10px] text-slate-600 italic text-center py-4">Generate tailored questions to practice.</p>
-                  )}
-                </div>
-              </div>
+              <button onClick={startInterview} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-sm shadow-xl shadow-indigo-500/10 transition-all">Start Audio Session</button>
             ) : (
               <div className="space-y-4">
                 <div className="h-64 bg-slate-950 rounded-xl p-4 overflow-y-auto text-[11px] space-y-2 font-mono custom-scrollbar">
@@ -411,51 +371,20 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
           </div>
         )}
 
-        {state.activeTab === 'optimize' && (
-          <div id="optimize-panel" role="tabpanel" aria-labelledby="optimize-tab" className="p-6 space-y-6 animate-fade-in text-center py-12">
-            <FileText size={48} className="mx-auto text-indigo-500/20 mb-4" />
-            <h3 className="text-lg font-bold text-white uppercase tracking-tighter">Optimizer Pro</h3>
-            <p className="text-[11px] text-slate-400 leading-relaxed mb-6">
-              Tailor your resume bullet points for maximum impact. Close this sidebar and click the Resume icon in the main navigation for the full experience.
-            </p>
-            <button
-              onClick={() => (window as any).dispatchSetRoute?.('optimize')}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-xs transition-all shadow-xl shadow-indigo-500/10"
-            >
-              Open Full Optimizer
-            </button>
-          </div>
-        )}
-
-        {state.activeTab === 'letter' && (
-          <div id="letter-panel" role="tabpanel" aria-labelledby="letter-tab" className="p-6 space-y-6 animate-fade-in text-center py-12">
-            <Send size={48} className="mx-auto text-indigo-500/20 mb-4" />
-            <h3 className="text-lg font-bold text-white uppercase tracking-tighter">Letter Architect</h3>
-            <p className="text-[11px] text-slate-400 leading-relaxed mb-6">
-              Generate high-impact cover letters tailored to your profile. Close this sidebar and click the Send icon in the main navigation for the full experience.
-            </p>
-            <button
-              onClick={() => (window as any).dispatchSetRoute?.('letter')}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-xs transition-all shadow-xl shadow-indigo-500/10"
-            >
-              Open Full Architect
-            </button>
-          </div>
-        )}
         {state.activeTab === 'studio' && (
           <div id="studio-panel" role="tabpanel" aria-labelledby="studio-tab" className="p-6 space-y-6 animate-fade-in">
-            <h3 className="text-lg font-bold text-white">Video Studio</h3>
+            <h3 className="text-lg font-bold text-white">Veo Studio</h3>
             {!state.videoState.isGenerating && !state.videoState.videoUrl && (
               <div className="space-y-4">
-                <div
-                  onClick={() => fileInputRef.current?.click()}
+                <div 
+                  onClick={() => fileInputRef.current?.click()} 
                   className="border-2 border-dashed border-white/10 rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer hover:border-indigo-500/50 transition-all group"
                 >
                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
                   {selectedImage ? <img src={selectedImage} alt="Reference" className="w-full h-32 object-cover rounded-lg" /> : <Upload className="text-slate-500 group-hover:text-indigo-400 transition-colors" size={32} />}
                   <p className="text-[10px] mt-2 uppercase font-bold text-slate-500 group-hover:text-slate-400">Upload Reference Image</p>
                 </div>
-                <input
+                <input 
                   value={videoPrompt}
                   onChange={(e) => setVideoPrompt(e.target.value)}
                   placeholder="Cinematic animation prompt..."
@@ -476,7 +405,7 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
             {state.videoState.videoUrl && (
               <div className="space-y-4">
                 <video src={state.videoState.videoUrl} controls autoPlay loop className="rounded-xl w-full shadow-2xl" />
-                <button onClick={() => onVideoStateUpdate({ ...state.videoState, videoUrl: null })} className="w-full py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold transition-all">New Project</button>
+                <button onClick={() => onVideoStateUpdate({...state.videoState, videoUrl: null})} className="w-full py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold transition-all">New Project</button>
               </div>
             )}
             {state.videoState.error && <p className="text-red-400 text-xs text-center p-4 bg-red-400/5 rounded-xl border border-red-400/10">{state.videoState.error}</p>}
@@ -487,7 +416,7 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
           <div id="vault-panel" role="tabpanel" aria-labelledby="vault-tab" className="p-6 space-y-6 animate-fade-in">
             <div className="text-center space-y-2 mb-6">
               <ShieldCheck size={40} className="mx-auto text-emerald-500" />
-              <p className="text-xs font-bold text-white uppercase tracking-widest">Secure Vault</p>
+              <p className="text-xs font-bold text-white uppercase tracking-widest">Neural Vault</p>
               <p className="text-[10px] text-slate-500">Persistent AES-256 encrypted mappings.</p>
             </div>
 
@@ -507,7 +436,7 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
                         <p className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter truncate">{key}</p>
                         <p className="text-xs text-slate-300 truncate mt-0.5">{value}</p>
                       </div>
-                      <button
+                      <button 
                         onClick={() => handleRemoveVaultItem(key)}
                         className="p-2 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
                         title="Purge record"
@@ -520,7 +449,7 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
                 </div>
               )}
             </div>
-
+            
             <div className="mt-8 p-4 bg-indigo-900/10 border border-indigo-500/20 rounded-xl">
               <div className="flex items-center space-x-2 text-[10px] font-black text-indigo-400 mb-2 uppercase tracking-[0.1em]">
                 <ShieldCheck size={14} />
@@ -539,7 +468,7 @@ const Sidebar: React.FC<SidebarProps> = ({ state, userProfile, onAutoFillAll, on
           <ShieldCheck size={12} className="text-emerald-500" />
           <span>VAULT ACTIVE</span>
         </div>
-        <button
+        <button 
           onClick={() => window.open('https://ai.google.dev/gemini-api/docs/billing', '_blank')}
           className="text-[10px] text-slate-600 hover:text-slate-400 underline tracking-tighter transition-colors"
         >

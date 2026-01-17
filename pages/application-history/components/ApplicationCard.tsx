@@ -2,19 +2,22 @@
 import React from 'react';
 import { Building2, Calendar, ChevronRight, Target, Zap } from 'lucide-react';
 
+import { ApplicationStage } from '../../../types';
+
 interface ApplicationCardProps {
   company: string;
   role: string;
-  status: 'applied' | 'interviewing' | 'rejected' | 'offer';
+  status: ApplicationStage;
   date: string;
   matchScore: number;
 }
 
 const ApplicationCard: React.FC<ApplicationCardProps> = ({ company, role, status, date, matchScore }) => {
   const statusColors = {
+    discovery: 'bg-slate-50 text-slate-500 border-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:border-white/5',
     applied: 'bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/10 dark:text-indigo-400 dark:border-indigo-900/30',
-    interviewing: 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/10 dark:text-amber-400 dark:border-amber-900/30',
-    rejected: 'bg-slate-50 text-slate-500 border-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:border-white/5',
+    interview: 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/10 dark:text-amber-400 dark:border-amber-900/30',
+    rejected: 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/10 dark:text-rose-400 dark:border-rose-900/30',
     offer: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/10 dark:text-emerald-400 dark:border-emerald-900/30',
   };
 
@@ -41,8 +44,8 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({ company, role, status
 
       <div className="flex items-center space-x-4">
         <div className="text-right mr-4 hidden md:block">
-           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Confidence</p>
-           <p className="text-sm font-black text-slate-900 dark:text-white">High</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Confidence</p>
+          <p className="text-sm font-black text-slate-900 dark:text-white">High</p>
         </div>
         <button className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all group-hover:translate-x-1">
           <ChevronRight size={20} className="text-slate-400" />
